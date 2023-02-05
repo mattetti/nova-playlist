@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -85,28 +88,10 @@ func main() {
 	}
 	htmlF.Write(data)
 
-	// create an index.html file that lists all the .html in the web directory
-	indexF, err := os.Create(filepath.Join("web", "index.html"))
-	if err != nil {
+	index := &Index{}
+	if err = index.SaveToDisk(); err != nil {
 		log.Fatal(err)
 	}
-	defer indexF.Close()
-	indexF.WriteString("<html><body><h1>Radio Nova Rotation Playlists</h1><ul>")
-	files, err := filepath.Glob(filepath.Join("web", "*.html"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, f := range files {
-		filename := filepath.Base(f)
-		if filename != "index.html" {
-			// remove the .html extension from f, split the string on the dash and join the first two elements
-			// to get the month and year
-			monthYear := strings.Join(strings.Split(filename[:len(filename)-5], "-")[:2], " ")
-			indexF.WriteString("<li><a href=\"" + filename + "\">" + monthYear + "</a></li>")
-		}
-	}
-	indexF.WriteString("</ul></body></html>")
-
 }
 
 func createRequiredDirectories() {
@@ -285,4 +270,88 @@ func monthEnglishName(month time.Month) string {
 		monthName = "Unknown"
 	}
 	return monthName
+}
+
+type PlaylistFile struct {
+	Year  string
+	Month string
+	Path  string
+}
+type Index struct {
+	PlaylistFiles []*PlaylistFile
+}
+
+var HTMLIndexTmpl = `
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Radio Nova - Playlists</title>
+	<link rel="stylesheet" type="text/css" href="playlist.css">
+	<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
+</head>
+<body>
+	<h1>Radio Nova - Playlists</h1>
+	<h2>Below are the monthly playlists of <a href="https://nova.fr" target="_blank">Radio Nova</a>.
+	</h2>
+		<ul id="playlists">
+		{{range $index, $track := .PlaylistFiles}}
+			<li><a href="{{.Path}}"> {{.Month}} {{.Year}}</a></li>
+		{{end}}
+		</ul>
+</body>
+</html>
+`
+
+func (idx *Index) ToHTML() ([]byte, error) {
+	t, err := template.New("playlist").Funcs(template.FuncMap{}).Parse(HTMLIndexTmpl)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	err = t.Execute(&buf, idx)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (idx *Index) SaveToDisk() error {
+	files, err := filepath.Glob(filepath.Join("web", "*.html"))
+	if err != nil {
+		return err
+	}
+
+	for _, f := range files {
+		filename := filepath.Base(f)
+		if filename != "index.html" {
+			segments := strings.Split(filename[:len(filename)-5], "-")
+			idx.PlaylistFiles = append(idx.PlaylistFiles, &PlaylistFile{
+				Month: segments[0],
+				Year:  segments[1],
+				Path:  filename,
+			})
+		}
+	}
+
+	// sort by year and month
+	sort.Slice(idx.PlaylistFiles, func(i, j int) bool {
+		year1, _ := strconv.Atoi(idx.PlaylistFiles[i].Year)
+		year2, _ := strconv.Atoi(idx.PlaylistFiles[j].Year)
+		if year1 == year2 {
+			month1, _ := strconv.Atoi(idx.PlaylistFiles[i].Month)
+			month2, _ := strconv.Atoi(idx.PlaylistFiles[j].Month)
+			return month1 < month2
+		}
+		return year1 < year2
+	})
+
+	html, err := idx.ToHTML()
+	if err != nil {
+		return err
+	}
+
+	filename := filepath.Join("web", "index.html")
+	return os.WriteFile(filename, html, os.ModePerm)
 }

@@ -24,7 +24,7 @@ var HTMLTmpl = `
 	<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
 </head>
 <body>
-	<h1>Radio Nova {{.Date}} - Playlist</h1>
+	<h1>Radio Nova {{.Date}}</h1>
 	<table>
 		<thead>
 			<tr>
@@ -40,8 +40,8 @@ var HTMLTmpl = `
 			{{range $index, $track := .Tracks}}
 			<tr class="playlist-entry">
 				<td class="position">{{addOne $index}}</td>
-				<td class="track"><a href="{{.YTMusicURL}}"> {{.Title}}</a>
-				by <a href="{{.YTPrimaryArtistURL}}"> {{.Artist}}</a></td>
+				<td class="track"><a href="{{.YTMusicURL}}"  target="_blank"> {{.Title}}</a>
+				by <a href="{{.YTPrimaryArtistURL}}"  target="_blank"> {{.Artist}}</a></td>
 				<td class="artwork">
 					<a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy"/></a>
 				</td>
