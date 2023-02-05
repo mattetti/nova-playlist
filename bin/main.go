@@ -1,29 +1,21 @@
 package main
 
 import (
-	"encoding/gob"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/mattetti/goRailsYourself/inflector"
-	"github.com/raitonoberu/ytmusic"
-)
-
-var (
-	playlistDataPath = "./data"
+	"github.com/mattetti/nova-playlist"
 )
 
 func main() {
-	globalPlaylist := Playlist{Date: "global"}
+	globalPlaylist := nova.Playlist{Date: "global"}
 
 	// if the user passed a -fetch flag, run the code, otherwise exit
 	if len(os.Args) > 1 && os.Args[1] == "-fetch" {
@@ -60,7 +52,7 @@ func main() {
 
 }
 
-func getPlaylist(date time.Time) *Playlist {
+func getPlaylist(date time.Time) *nova.Playlist {
 	// yesterday
 	date = date.Add(-time.Hour * 24)
 	date = time.Date(date.Year(), date.Month(), date.Day(), 23, 59, 0, 0, time.UTC)
@@ -73,7 +65,7 @@ func getPlaylist(date time.Time) *Playlist {
 	nbrItems := 99
 	dDate := fmt.Sprintf("%d-%d-%d", t.Year(), t.Month(), t.Day())
 
-	playlist := Playlist{Date: dDate}
+	playlist := nova.Playlist{Date: dDate}
 	err := playlist.LoadFromDisk()
 
 	if err == nil {
@@ -134,7 +126,7 @@ func getPlaylist(date time.Time) *Playlist {
 		nbrItems = 0
 
 		doc.Find(`div.wwtt_content`).Each(func(i int, item *goquery.Selection) {
-			track := &Track{}
+			track := &nova.Track{}
 			nbrItems++
 			item.Find(`div.col-lg-7 > div > h2`).Each(func(i int, s *goquery.Selection) {
 				track.Artist = strings.Join(strings.Split(strings.ToLower(s.Text()), "/"), " and ")
@@ -167,181 +159,6 @@ func getPlaylist(date time.Time) *Playlist {
 	}
 
 	return &playlist
-}
-
-type Track struct {
-	Artist      string
-	Date        string
-	Title       string
-	Time        string
-	Hour        int
-	Minute      int
-	ImgURL      string
-	SpotifyURL  string
-	Count       int
-	YTMusicInfo *ytmusic.TrackItem
-}
-
-func (t *Track) Key() string {
-	return t.Artist + "|" + t.Title
-}
-
-func (t *Track) YTMusicURL() string {
-	if t.YTMusicInfo != nil {
-		return "https://music.youtube.com/watch?v=" + t.YTMusicInfo.VideoID
-	}
-	return ""
-}
-
-type Playlist struct {
-	Tracks []*Track
-	Date   string
-}
-
-func (p *Playlist) Sort() {
-	sort.Slice(p.Tracks, func(i, j int) bool {
-		return p.Tracks[i].Count > p.Tracks[j].Count
-	})
-}
-
-func (p *Playlist) Deduped() []*Track {
-	uniques := map[string]*Track{}
-	var key string
-	for _, track := range p.Tracks {
-		key = track.Key()
-		// if the track is already in the map, it's a duplicate
-		t, ok := uniques[key]
-		if ok {
-			uniques[key].Count++
-		} else {
-			t = &Track{Artist: track.Artist,
-				Title:      track.Title,
-				ImgURL:     track.ImgURL,
-				SpotifyURL: track.SpotifyURL,
-				Count:      1,
-			}
-			uniques[key] = t
-		}
-	}
-	uniqueTracks := make([]*Track, 0, len(uniques))
-	for _, track := range uniques {
-		uniqueTracks = append(uniqueTracks, track)
-	}
-	// sort unique tracks by count
-	sort.Slice(uniqueTracks, func(i, j int) bool {
-		return uniqueTracks[i].Count > uniqueTracks[j].Count
-	})
-	return uniqueTracks
-}
-
-func (p *Playlist) String() string {
-	// use a string builder to avoid creating a new string for each track
-	var s strings.Builder
-	s.WriteString(fmt.Sprintf("Playlist: date: %s\n", p.Date))
-	for _, track := range p.Tracks {
-		s.WriteString(fmt.Sprintf("%s : %s @ %d:%d\n", track.Artist, track.Title, track.Hour, track.Minute))
-	}
-	return s.String()
-}
-
-func (p *Playlist) Filename() string {
-	return fmt.Sprintf("playlist-%s.gob", p.Date)
-}
-
-func (p *Playlist) LoadFromDisk() error {
-	file, err := os.Open(filepath.Join(playlistDataPath, p.Filename()))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// decode the file into playlist
-	decoder := gob.NewDecoder(file)
-	if err := decoder.Decode(p); err != nil {
-		return fmt.Errorf("failed to decode the binary file %w", err)
-	}
-
-	return nil
-}
-
-func (p *Playlist) SaveToDisk() error {
-	// path relative to this binary
-	file, err := os.Create(filepath.Join(playlistDataPath, p.Filename()))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	encoder := gob.NewEncoder(file)
-	if err := encoder.Encode(p); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (p *Playlist) PopulateYTIDs() error {
-	for i, track := range p.Tracks {
-		if track.YTMusicInfo == nil {
-			track.YTMusicInfo = getYTMusicInfo(track)
-			p.Tracks[i] = track
-		}
-	}
-	return nil
-}
-
-func (p *Playlist) AddTracks(tracks []*Track) {
-	var found bool
-	for _, trackToAdd := range tracks {
-		for i, t := range p.Tracks {
-			if t.Key() == trackToAdd.Key() {
-				p.Tracks[i].Count++
-				found = true
-				break
-			}
-		}
-		if !found {
-			p.Tracks = append(p.Tracks, trackToAdd)
-		}
-	}
-}
-
-func getYTMusicInfo(track *Track) *ytmusic.TrackItem {
-	s := ytmusic.Search(fmt.Sprintf("%s by %s", track.Title, track.Artist))
-	fmt.Printf(".")
-	result, err := s.Next()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if (len(result.Tracks)) == 0 {
-		log.Println("No results for", track.Title, "by", track.Artist)
-		return nil
-	}
-	if cleanTitle(track.Title) != cleanTitle(result.Tracks[0].Title) {
-		log.Println("\tWe might have a bad match for", track.Title, "by", track.Artist)
-		fmt.Println("\t", track.Title, "!=", result.Tracks[0].Title)
-		a := cleanTitle(track.Title)
-		b := cleanTitle(result.Tracks[0].Title)
-		fmt.Println("\t", a, "!=", b)
-		// fmt.Printf("%v\n", []byte(a))
-		// fmt.Printf("%v\n", []byte(b))
-		// return nil
-	}
-
-	// fmt.Printf("Got YTMusicID for %s by %s : %+v/n", track.Title, track.Artist, result.Tracks[0])
-	return result.Tracks[0]
-}
-
-func cleanTitle(title string) string {
-	t := strings.ToLower(inflector.Transliterate(title))
-	t = strings.ReplaceAll(t, ",", "")
-	startIndex := strings.Index(t, "(")
-	endIndex := strings.Index(t, ")")
-	if startIndex != -1 && endIndex != -1 && endIndex > startIndex {
-		t = t[:startIndex] + t[endIndex+1:]
-	}
-	t = strings.TrimSpace(t)
-
-	return t
 }
 
 func splitTimeString(timeStr string) (int, int) {
