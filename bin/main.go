@@ -85,6 +85,28 @@ func main() {
 	}
 	htmlF.Write(data)
 
+	// create an index.html file that lists all the .html in the web directory
+	indexF, err := os.Create(filepath.Join("web", "index.html"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer indexF.Close()
+	indexF.WriteString("<html><body><h1>Radio Nova Rotation Playlists</h1><ul>")
+	files, err := filepath.Glob(filepath.Join("web", "*.html"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, f := range files {
+		filename := filepath.Base(f)
+		if filename != "index.html" {
+			// remove the .html extension from f, split the string on the dash and join the first two elements
+			// to get the month and year
+			monthYear := strings.Join(strings.Split(filename[:len(filename)-5], "-")[:2], " ")
+			indexF.WriteString("<li><a href=\"" + filename + "\">" + monthYear + "</a></li>")
+		}
+	}
+	indexF.WriteString("</ul></body></html>")
+
 }
 
 func createRequiredDirectories() {

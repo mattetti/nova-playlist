@@ -1,0 +1,79 @@
+body {
+  font-family: 'Open Sans', sans-serif;
+  background-color: #f2f2f2;
+}
+
+h1 {
+  text-align: center;
+  color: #333;
+  margin-top: 50px;
+  font-size: 36px;
+  font-weight: bold;
+}
+
+table {
+  width: 80%;
+  margin: 0 auto;
+  border-collapse: collapse;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+th {
+  background-color: #333;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+th.position {
+  width: 50px;
+  text-align: center;
+}
+
+td a {
+  color: #122888;
+  font-weight: bold;
+}
+
+td img {
+  width: 50px;
+  height: 50px;
+  border-radius: 25px;
+  margin-right: 10px;
+}
+
+td.playcount, td.position {
+  text-align: center;
+}
+
+td.track {
+  text-transform: capitalize;
+}
+
+td.dsp-links {
+  text-align: center;
+}
+
+td.dsp-links img {
+  width: 40px;
+  height: 40px;
+  margin: 0 5px;
+}
+
+.center {
+  text-align: center;
+}
+
+img.artwork {
+  width: 150px;
+  height: 150px;
+}
+
+table tbody tr:hover {
+  background-color: #f5f5f5ba;
+}

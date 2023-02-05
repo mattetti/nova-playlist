@@ -20,29 +20,31 @@ var HTMLTmpl = `
 <html>
 <head>
 	<title>Radio Nova {{.Date}} - Playlist</title>
+	<link rel="stylesheet" type="text/css" href="playlist.css">
+	<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
 </head>
 <body>
 	<h1>Radio Nova {{.Date}} - Playlist</h1>
 	<table>
 		<thead>
 			<tr>
-				<th>#</th>
+				<th class="position">#</th>
 				<th>Track</th>
 				<th>Artwork</th>
-				<th>SpotifyURL</th>
-				<th>Count</th>
+				<th>Play links</th>
+				<th>Play Count</th>
 			</tr>
 		</thead>
 		<tbody>
 			{{range $index, $track := .Tracks}}
-			<tr>
-				<td>{{addOne $index}}</td>
-				<td><a href="{{.YTMusicURL}}"> {{.Title}}</a>
+			<tr class="playlist-entry">
+				<td class="position">{{addOne $index}}</td>
+				<td class="track"><a href="{{.YTMusicURL}}"> {{.Title}}</a>
 				by <a href="{{.YTPrimaryArtistURL}}"> {{.Artist}}</a></td>
-				<td><img src="{{.ThumbURL}}"/></td>
-				<td><a href="{{.YTMusicURL}}">Play on YouTube Music</a></td>
-				<td><a href="{{.SpotifyURL}}">Play on Spotify</a></td>
-				<td>{{.Count}}</td>
+				<td><img src="{{.ThumbURL}}" class="artwork" loading="lazy"/></td>
+				<td class="dsp-links"><a href="{{.YTMusicURL}}"><img src="images/youtube-music.svg"/></a>
+				<a href="{{.SpotifyURL}}"><img src="images/spotify.svg"/></a> </td>
+				<td class="playcount">{{.Count}}</td>
 			</tr>
 			{{end}}
 		</tbody>
