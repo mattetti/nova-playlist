@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,19 +15,39 @@ import (
 	"github.com/mattetti/nova-playlist"
 )
 
+var monthFlag = flag.Int("month", 0, "the month to process (e.g. 1 for January, 2 for February, etc)")
+var fetchFlag = flag.Bool("fetch", false, "fetch the playlist from the Radio Nova website")
+
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+	flag.PrintDefaults()
+}
+
 func main() {
-	globalPlaylist := nova.Playlist{Date: "global"}
+	flag.Usage = usage
+	flag.Parse()
+
+	date := time.Now().UTC()
+	if *monthFlag <= 0 || *monthFlag > 12 {
+		fmt.Println("Invalid month flag, please pass a number between 1 and 12")
+		flag.Usage()
+		*monthFlag = int(date.Month() - 1)
+		fmt.Printf("using last month (%s) by default\n", monthEnglishName(time.Month(*monthFlag)))
+	}
+
+	month := *monthFlag
+	date = time.Date(date.Year(), time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	firstDayOfMonth := time.Date(date.Year(), time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	lastDayOfMonth := time.Date(date.Year(), time.Month(month)+1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, -1)
+
+	dateStr := monthEnglishName(time.Month(month)) + "-" + strconv.Itoa(date.Year())
+	globalPlaylist := nova.Playlist{Date: dateStr}
 
 	// if the user passed a -fetch flag, run the code, otherwise exit
-	if len(os.Args) > 1 && os.Args[1] == "-fetch" {
+	if *fetchFlag {
 
-		date := time.Now().UTC()
-
-		// start 2 weeks from now and get the playlist for each day
-		for i := 0; i < 30; i++ {
-			date = date.Add(-time.Hour * 24)
-
-			playlist := getPlaylist(date)
+		playlists := getPlaylists(firstDayOfMonth, lastDayOfMonth)
+		for _, playlist := range playlists {
 			globalPlaylist.AddTracks(playlist.Tracks)
 		}
 	} else {
@@ -52,12 +73,19 @@ func main() {
 
 }
 
-func getPlaylist(date time.Time) *nova.Playlist {
-	// yesterday
-	date = date.Add(-time.Hour * 24)
-	date = time.Date(date.Year(), date.Month(), date.Day(), 23, 59, 0, 0, time.UTC)
+func getPlaylists(startDate, endDate time.Time) []*nova.Playlist {
+	var playlists []*nova.Playlist
+	fmt.Println("Getting the playlists for", startDate.String(), "to", endDate.String())
 
-	// yesterday
+	for date := startDate; date.Before(endDate); date = date.AddDate(0, 0, 1) {
+		playlist := getPlaylist(date)
+		playlists = append(playlists, playlist)
+	}
+
+	return playlists
+}
+
+func getPlaylist(date time.Time) *nova.Playlist {
 	t := date
 	fmt.Println("Getting the playlist for", t.String())
 
@@ -172,4 +200,38 @@ func splitTimeString(timeStr string) (int, int) {
 		panic(err)
 	}
 	return h, m
+}
+
+func monthEnglishName(month time.Month) string {
+
+	var monthName string
+	switch month {
+	case time.January:
+		monthName = "January"
+	case time.February:
+		monthName = "February"
+	case time.March:
+		monthName = "March"
+	case time.April:
+		monthName = "April"
+	case time.May:
+		monthName = "May"
+	case time.June:
+		monthName = "June"
+	case time.July:
+		monthName = "July"
+	case time.August:
+		monthName = "August"
+	case time.September:
+		monthName = "September"
+	case time.October:
+		monthName = "October"
+	case time.November:
+		monthName = "November"
+	case time.December:
+		monthName = "December"
+	default:
+		monthName = "Unknown"
+	}
+	return monthName
 }
