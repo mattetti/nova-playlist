@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +16,10 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/mattetti/goRailsYourself/inflector"
 	"github.com/raitonoberu/ytmusic"
+)
+
+var (
+	playlistDataPath = "./data"
 )
 
 func main() {
@@ -35,7 +40,9 @@ func main() {
 	} else {
 		// load the playlist from disk
 		if err := globalPlaylist.LoadFromDisk(); err != nil {
-			log.Fatal(err)
+			fmt.Println("Error loading the playlist from disk:", err)
+			fmt.Println("Run the program with the -fetch flag to fetch the historical data from the Radio Nova website")
+			os.Exit(1)
 		}
 	}
 
@@ -242,7 +249,7 @@ func (p *Playlist) Filename() string {
 }
 
 func (p *Playlist) LoadFromDisk() error {
-	file, err := os.Open(p.Filename())
+	file, err := os.Open(filepath.Join(playlistDataPath, p.Filename()))
 	if err != nil {
 		return err
 	}
@@ -258,7 +265,8 @@ func (p *Playlist) LoadFromDisk() error {
 }
 
 func (p *Playlist) SaveToDisk() error {
-	file, err := os.Create(p.Filename())
+	// path relative to this binary
+	file, err := os.Create(filepath.Join(playlistDataPath, p.Filename()))
 	if err != nil {
 		return err
 	}
