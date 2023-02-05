@@ -1,8 +1,10 @@
 package nova
 
 import (
+	"bytes"
 	"encoding/gob"
 	"fmt"
+	"html/template"
 	"os"
 	"path/filepath"
 	"sort"
@@ -12,6 +14,42 @@ import (
 var (
 	PlaylistDataPath = "./data"
 )
+
+var HTMLTmpl = `
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Radio Nova {{.Date}} - Playlist</title>
+</head>
+<body>
+	<h1>Radio Nova {{.Date}} - Playlist</h1>
+	<table>
+		<thead>
+			<tr>
+				<th>#</th>
+				<th>Track</th>
+				<th>Artwork</th>
+				<th>SpotifyURL</th>
+				<th>Count</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{range $index, $track := .Tracks}}
+			<tr>
+				<td>{{addOne $index}}</td>
+				<td><a href="{{.YTMusicURL}}"> {{.Title}}</a>
+				by <a href="{{.YTPrimaryArtistURL}}"> {{.Artist}}</a></td>
+				<td><img src="{{.ThumbURL}}"/></td>
+				<td><a href="{{.YTMusicURL}}">Play on YouTube Music</a></td>
+				<td><a href="{{.SpotifyURL}}">Play on Spotify</a></td>
+				<td>{{.Count}}</td>
+			</tr>
+			{{end}}
+		</tbody>
+	</table>
+</body>
+</html>
+`
 
 type Playlist struct {
 	Tracks []*Track
@@ -120,7 +158,29 @@ func (p *Playlist) AddTracks(tracks []*Track) {
 			}
 		}
 		if !found {
+			trackToAdd.Count = 1
 			p.Tracks = append(p.Tracks, trackToAdd)
 		}
 	}
+}
+
+func (p *Playlist) ToHTML() ([]byte, error) {
+	t, err := template.New("playlist").Funcs(template.FuncMap{
+		"addOne": addOne,
+	}).Parse(HTMLTmpl)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	err = t.Execute(&buf, p)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func addOne(n int) int {
+	return n + 1
 }

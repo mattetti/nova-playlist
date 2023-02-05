@@ -20,6 +20,15 @@ type Track struct {
 	YTMusicInfo *ytmusic.TrackItem
 }
 
+func (t *Track) YTPrimaryArtistURL() string {
+	if t != nil && t.YTMusicInfo != nil {
+		if len(t.YTMusicInfo.Artists) > 0 {
+			return fmt.Sprintf("https://music.youtube.com/channel/%s", t.YTMusicInfo.Artists[0].ID)
+		}
+	}
+	return ""
+}
+
 func (t *Track) Key() string {
 	return t.Artist + "|" + t.Title
 }
@@ -55,4 +64,16 @@ func (track *Track) GetYTMusicInfo() *ytmusic.TrackItem {
 
 	// fmt.Printf("Got YTMusicID for %s by %s : %+v/n", track.Title, track.Artist, result.Tracks[0])
 	return result.Tracks[0]
+}
+
+func (t *Track) ThumbURL() string {
+	if t == nil {
+		return ""
+	}
+
+	if t.YTMusicInfo != nil && len(t.YTMusicInfo.Thumbnails) > 0 {
+		return t.YTMusicInfo.Thumbnails[len(t.YTMusicInfo.Thumbnails)-1].URL
+	}
+
+	return t.ImgURL
 }

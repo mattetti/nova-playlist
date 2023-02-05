@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +27,8 @@ func usage() {
 func main() {
 	flag.Usage = usage
 	flag.Parse()
+
+	createRequiredDirectories()
 
 	date := time.Now().UTC()
 	if *monthFlag <= 0 || *monthFlag > 12 {
@@ -71,6 +74,32 @@ func main() {
 		fmt.Printf("(%d) %s by %s  [%d] - %s\n", i+1, track.Title, track.Artist, track.Count, track.YTMusicURL())
 	}
 
+	htmlF, err := os.Create(filepath.Join("web", globalPlaylist.Date+".html"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer htmlF.Close()
+	data, err := globalPlaylist.ToHTML()
+	if err != nil {
+		log.Fatal(err)
+	}
+	htmlF.Write(data)
+
+}
+
+func createRequiredDirectories() {
+	// create the data directory if it doesn't exist
+	if _, err := os.Stat(nova.PlaylistDataPath); os.IsNotExist(err) {
+		if err := os.Mkdir(nova.PlaylistDataPath, 0755); err != nil {
+			log.Fatal("Error creating the data directory:", err)
+		}
+	}
+
+	if _, err := os.Stat("web"); os.IsNotExist(err) {
+		if err := os.Mkdir("web", 0755); err != nil {
+			log.Fatal("Error creating the web directory:", err)
+		}
+	}
 }
 
 func getPlaylists(startDate, endDate time.Time) []*nova.Playlist {
