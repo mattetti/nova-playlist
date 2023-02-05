@@ -3,6 +3,7 @@ package nova
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/raitonoberu/ytmusic"
 )
@@ -22,9 +23,18 @@ type Track struct {
 
 func (t *Track) YTPrimaryArtistURL() string {
 	if t != nil && t.YTMusicInfo != nil {
-		if len(t.YTMusicInfo.Artists) > 0 {
-			return fmt.Sprintf("https://music.youtube.com/channel/%s", t.YTMusicInfo.Artists[0].ID)
+		for _, artist := range t.YTMusicInfo.Artists {
+			if artist.ID != "" {
+				return fmt.Sprintf("https://music.youtube.com/channel/%s", artist.ID)
+			}
 		}
+	}
+	return "#"
+}
+
+func (t *Track) YTDuration() string {
+	if t != nil && t.YTMusicInfo != nil {
+		return time.Duration(t.YTMusicInfo.Duration * int(time.Second)).String()
 	}
 	return ""
 }

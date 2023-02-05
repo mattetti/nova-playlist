@@ -31,7 +31,8 @@ var HTMLTmpl = `
 				<th class="position">#</th>
 				<th>Track</th>
 				<th>Artwork</th>
-				<th>Play links</th>
+				<th>Play</th>
+				<th>Duration</th>
 				<th>Play Count</th>
 			</tr>
 		</thead>
@@ -41,9 +42,13 @@ var HTMLTmpl = `
 				<td class="position">{{addOne $index}}</td>
 				<td class="track"><a href="{{.YTMusicURL}}"> {{.Title}}</a>
 				by <a href="{{.YTPrimaryArtistURL}}"> {{.Artist}}</a></td>
-				<td><img src="{{.ThumbURL}}" class="artwork" loading="lazy"/></td>
-				<td class="dsp-links"><a href="{{.YTMusicURL}}"><img src="images/youtube-music.svg"/></a>
-				<a href="{{.SpotifyURL}}"><img src="images/spotify.svg"/></a> </td>
+				<td class="artwork">
+					<a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy"/></a>
+				</td>
+				<td class="dsp-links">
+					<a href="{{.YTMusicURL}}" target="_blank"><img src="images/youtube-music.svg"/></a>
+					<a href="{{.SpotifyURL}}" target="_blank"><img src="images/spotify.svg"/></a> </td>
+				<td class="duration">{{.YTDuration}}</td>
 				<td class="playcount">{{.Count}}</td>
 			</tr>
 			{{end}}
