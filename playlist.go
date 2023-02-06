@@ -31,8 +31,8 @@ var HTMLTmpl = `
 		<thead>
 			<tr>
 				<th class="position">#</th>
-				<th>Track</th>
 				<th>Artwork</th>
+				<th>Track</th>
 				<th>Play</th>
 				<th>Duration</th>
 				<th>Plays</th>
@@ -42,12 +42,12 @@ var HTMLTmpl = `
 			{{range $index, $track := .Tracks}}
 			<tr class="playlist-entry">
 				<td class="position">{{addOne $index}}</td>
-				<td class="track">
-				<a href="{{.YTMusicURL}}" target="_blank"><span class="title">{{.Title}}</span></a>
-				by <a href="{{.YTPrimaryArtistURL}}" target="_blank"><span class="artist-name">{{.Artist}}</span></a></td>
 				<td class="artwork">
 					<a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy"/></a>
 				</td>
+				<td class="track">
+				<a href="{{.YTMusicURL}}" target="_blank"><span class="title">{{.Title}}</span></a>
+				by <a href="{{.YTPrimaryArtistURL}}" target="_blank"><span class="artist-name">{{.Artist}}</span></a></td>
 				<td class="dsp-links">
 					<a class="ytmusic" href="{{.YTMusicURL}}" target="_blank"><img src="images/youtube-music.svg"/></a>
 					<a class="spotify" href="{{.SpotifyURL}}" target="_blank"><img src="images/spotify.svg"/></a>
