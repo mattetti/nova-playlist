@@ -52,42 +52,51 @@ func main() {
 	lastDayOfMonth := time.Date(date.Year(), time.Month(month)+1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, -1)
 
 	dateStr := monthEnglishName(time.Month(month)) + "-" + strconv.Itoa(date.Year())
-	globalPlaylist := nova.Playlist{Date: dateStr}
+	monthlyPlaylist := nova.Playlist{
+		Name:  dateStr,
+		Year:  date.Year(),
+		Month: int(date.Month()),
+	}
+	_, err := nova.LoadYTMusicCache()
+	if err != nil {
+		log.Fatal(fmt.Errorf("Failed to load the YT music cache - %w", err))
+	}
+	defer nova.YTMusic.Save()
 
 	// if the user passed a -fetch flag, run the code, otherwise exit
 	if *fetchFlag {
 
 		playlists := getPlaylists(firstDayOfMonth, lastDayOfMonth)
 		for _, playlist := range playlists {
-			globalPlaylist.AddTracks(playlist.Tracks)
+			monthlyPlaylist.AddTracks(playlist.Tracks)
 		}
 	} else {
 		// load the playlist from disk
-		if err := globalPlaylist.LoadFromDisk(); err != nil {
+		if err := monthlyPlaylist.LoadFromDisk(); err != nil {
 			fmt.Println("Error loading the playlist from disk:", err)
 			fmt.Println("Run the program with the -fetch flag to fetch the historical data from the Radio Nova website")
 			os.Exit(1)
 		}
 	}
 
-	globalPlaylist.Sort()
-	globalPlaylist.PopulateYTIDs()
-	if err := globalPlaylist.SaveToDisk(); err != nil {
+	monthlyPlaylist.Sort()
+	monthlyPlaylist.PopulateYTIDs()
+	if err := monthlyPlaylist.SaveToDisk(); err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Println()
 	for i := 0; i < 100; i++ {
-		track := globalPlaylist.Tracks[i]
+		track := monthlyPlaylist.Tracks[i]
 		fmt.Printf("(%d) %s by %s  [%d] - %s\n", i+1, track.Title, track.Artist, track.Count, track.YTMusicURL())
 	}
 
-	htmlF, err := os.Create(filepath.Join("web", globalPlaylist.Date+".html"))
+	htmlF, err := os.Create(filepath.Join("web", monthlyPlaylist.Name+".html"))
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer htmlF.Close()
-	data, err := globalPlaylist.ToHTML()
+	data, err := monthlyPlaylist.ToHTML()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -125,7 +134,9 @@ func getPlaylists(startDate, endDate time.Time) []*nova.Playlist {
 
 	for date := startDate; date.Before(endDate); date = date.AddDate(0, 0, 1) {
 		playlist := getPlaylist(date, nonce)
-		playlists = append(playlists, playlist)
+		if playlist != nil {
+			playlists = append(playlists, playlist)
+		}
 	}
 
 	return playlists
@@ -139,7 +150,7 @@ func getPlaylist(date time.Time, nonce string) *nova.Playlist {
 	nbrItems := 99
 	dDate := fmt.Sprintf("%d-%d-%d", t.Year(), t.Month(), t.Day())
 
-	playlist := nova.Playlist{Date: dDate}
+	playlist := nova.Playlist{Year: t.Year(), Month: int(t.Month()), Day: t.Day()}
 	err := playlist.LoadFromDisk()
 
 	if err == nil {
@@ -226,7 +237,8 @@ func getPlaylist(date time.Time, nonce string) *nova.Playlist {
 		}
 
 		if (resp == nil) || (resp.StatusCode != 200) {
-			log.Fatalf("failed to retrieve playlist for %s, page %d\n", dDate, page)
+			log.Printf("failed to retrieve playlist for %s, page %d\n", dDate, page)
+			return nil
 		}
 
 		doc, err := goquery.NewDocumentFromReader(resp.Body)

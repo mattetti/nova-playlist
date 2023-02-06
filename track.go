@@ -51,29 +51,38 @@ func (t *Track) YTMusicURL() string {
 }
 
 func (track *Track) GetYTMusicInfo() *ytmusic.TrackItem {
-	s := ytmusic.Search(fmt.Sprintf("%s by %s", track.Title, track.Artist))
-	fmt.Printf(".")
-	result, err := s.Next()
+	query := fmt.Sprintf("%s by %s", track.Title, track.Artist)
+	info, err := YTMusic.TrackInfo(query)
 	if err != nil {
-		log.Fatal(err)
-	}
-	if (len(result.Tracks)) == 0 {
-		log.Println("No results for", track.Title, "by", track.Artist)
+		log.Println(err)
 		return nil
 	}
-	if CleanTitle(track.Title) != CleanTitle(result.Tracks[0].Title) {
-		log.Println("\tWe might have a bad match for", track.Title, "by", track.Artist)
-		fmt.Println("\t", track.Title, "!=", result.Tracks[0].Title)
-		a := CleanTitle(track.Title)
-		b := CleanTitle(result.Tracks[0].Title)
-		fmt.Println("\t", a, "!=", b)
-		// fmt.Printf("%v\n", []byte(a))
-		// fmt.Printf("%v\n", []byte(b))
-		// return nil
-	}
+	return info
+	/*
+		s := ytmusic.Search(query)
+		fmt.Printf(".")
+		result, err := s.Next()
+		if err != nil {
+			log.Fatal(err)
+		}
+		if (len(result.Tracks)) == 0 {
+			log.Println("No results for", track.Title, "by", track.Artist)
+			return nil
+		}
+		if CleanTitle(track.Title) != CleanTitle(result.Tracks[0].Title) {
+			log.Println("\tWe might have a bad match for", track.Title, "by", track.Artist)
+			fmt.Println("\t", track.Title, "!=", result.Tracks[0].Title)
+			a := CleanTitle(track.Title)
+			b := CleanTitle(result.Tracks[0].Title)
+			fmt.Println("\t", a, "!=", b)
+			// fmt.Printf("%v\n", []byte(a))
+			// fmt.Printf("%v\n", []byte(b))
+			// return nil
+		}
 
-	// fmt.Printf("Got YTMusicID for %s by %s : %+v/n", track.Title, track.Artist, result.Tracks[0])
-	return result.Tracks[0]
+		// fmt.Printf("Got YTMusicID for %s by %s : %+v/n", track.Title, track.Artist, result.Tracks[0])
+		return result.Tracks[0]
+	*/
 }
 
 func (t *Track) ThumbURL() string {

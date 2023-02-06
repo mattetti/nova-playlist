@@ -19,12 +19,12 @@ var HTMLTmpl = `
 <!DOCTYPE html>
 <html>
 <head>
-	<title>Radio Nova {{.Date}} - Playlist</title>
+	<title>Radio Nova {{.Name}} - Playlist</title>
 	<link rel="stylesheet" type="text/css" href="playlist.css">
 	<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
 </head>
 <body>
-	<h1>Radio Nova {{.Date}}</h1>
+	<h1>Radio Nova {{.Name}}</h1>
 	<table>
 		<thead>
 			<tr>
@@ -60,7 +60,10 @@ var HTMLTmpl = `
 
 type Playlist struct {
 	Tracks []*Track
-	Date   string
+	Name   string
+	Month  int
+	Year   int
+	Day    int
 }
 
 func (p *Playlist) Sort() {
@@ -102,21 +105,58 @@ func (p *Playlist) Deduped() []*Track {
 func (p *Playlist) String() string {
 	// use a string builder to avoid creating a new string for each track
 	var s strings.Builder
-	s.WriteString(fmt.Sprintf("Playlist: date: %s\n", p.Date))
+	s.WriteString(fmt.Sprintf("Playlist: date: %s\n", p.Name))
 	for _, track := range p.Tracks {
 		s.WriteString(fmt.Sprintf("%s : %s @ %d:%d\n", track.Artist, track.Title, track.Hour, track.Minute))
 	}
 	return s.String()
 }
 
+// the path in which the playlist can be saved/loaded from
+func (p *Playlist) Path() string {
+	if p.Name != "" {
+		return PlaylistDataPath
+	}
+	path := PlaylistDataPath
+	if p.Year > 0 {
+		path = filepath.Join(path, fmt.Sprintf("%d", p.Year))
+	}
+	if p.Month > 0 {
+		path = filepath.Join(path, fmt.Sprintf("%02d", p.Month))
+	}
+	return path
+}
+
 func (p *Playlist) Filename() string {
-	return fmt.Sprintf("playlist-%s.gob", p.Date)
+	filename := "playlist"
+	if p == nil {
+		return filename + ".gob"
+	}
+	// if the playlist has a name, use that as the filename
+	if p.Name != "" {
+		return filename + "-" + p.Name + ".gob"
+	}
+
+	if p.Year > 0 {
+		filename = fmt.Sprintf("%s-%d", filename, p.Year)
+	}
+	if p.Month > 0 {
+		filename = fmt.Sprintf("%s-%02d", filename, p.Month)
+	}
+	if p.Day > 0 {
+		filename = fmt.Sprintf("%s-%02d", filename, p.Day)
+	}
+	return filename + ".gob"
+}
+
+func (p *Playlist) OldFilename() string {
+	return fmt.Sprintf("playlist-%s.gob", p.Name)
 }
 
 func (p *Playlist) LoadFromDisk() error {
-	file, err := os.Open(filepath.Join(PlaylistDataPath, p.Filename()))
+	file, err := os.Open(filepath.Join(p.Path(), p.Filename()))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open the file from disk %w", err)
 	}
 	defer file.Close()
 
@@ -131,9 +171,20 @@ func (p *Playlist) LoadFromDisk() error {
 
 func (p *Playlist) SaveToDisk() error {
 	// path relative to this binary
-	file, err := os.Create(filepath.Join(PlaylistDataPath, p.Filename()))
+	destPath := filepath.Join(p.Path(), p.Filename())
+	fmt.Println("> saving playlist to", destPath)
+	// check if directory exists
+	dir := filepath.Dir(destPath)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0700)
+		if err != nil {
+			return fmt.Errorf("failed to make sure all directories were created - %w", err)
+		}
+	}
+
+	file, err := os.Create(destPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create the file: %s - %w", destPath, err)
 	}
 	defer file.Close()
 
