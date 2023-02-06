@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -43,6 +44,9 @@ func main() {
 
 	month := *monthFlag
 	date = time.Date(date.Year(), time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	if date.After(time.Now().UTC()) {
+		date = time.Date(date.Year()-1, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	}
 	firstDayOfMonth := time.Date(date.Year(), time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	lastDayOfMonth := time.Date(date.Year(), time.Month(month)+1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, -1)
 
@@ -110,18 +114,23 @@ func createRequiredDirectories() {
 }
 
 func getPlaylists(startDate, endDate time.Time) []*nova.Playlist {
+	nonce, err := GetNonce()
+	if err != nil {
+		fmt.Println("Error getting the nonce:", err)
+		log.Fatal(err)
+	}
 	var playlists []*nova.Playlist
 	fmt.Println("Getting the playlists for", startDate.String(), "to", endDate.String())
 
 	for date := startDate; date.Before(endDate); date = date.AddDate(0, 0, 1) {
-		playlist := getPlaylist(date)
+		playlist := getPlaylist(date, nonce)
 		playlists = append(playlists, playlist)
 	}
 
 	return playlists
 }
 
-func getPlaylist(date time.Time) *nova.Playlist {
+func getPlaylist(date time.Time, nonce string) *nova.Playlist {
 	t := date
 	fmt.Println("Getting the playlist for", t.String())
 
@@ -136,31 +145,40 @@ func getPlaylist(date time.Time) *nova.Playlist {
 		return &playlist
 	}
 
+	if nonce == "" {
+		nonce, err = GetNonce()
+		if err != nil {
+			fmt.Println("Error getting the nonce:", err)
+			log.Fatal(err)
+		}
+	}
+
+	lastRequest := time.Now()
 	for page < 100 && nbrItems > 0 {
 		page++
 
-		dDate = fmt.Sprintf("%d-%d-%d", t.Year(), t.Month(), t.Day())
-		payload := "action=loadmore_programs&afp_nonce=f03afb6fe9"
+		client := &http.Client{}
+
+		dDate = fmt.Sprintf("%04d-%02d-%02d", t.Year(), t.Month(), t.Day())
+		payload := "action=loadmore_programs"
+		payload += "&afp_nonce=" + nonce
 		payload += "&date=" + dDate
 		payload += "&time=" + url.QueryEscape("23:59")
 		payload += "&page=" + fmt.Sprintf("%d", page)
 		payload += "&radio=910"
 
-		client := &http.Client{}
-
 		body := strings.NewReader(payload)
 		req, err := http.NewRequest("POST", "https://www.nova.fr/wp-admin/admin-ajax.php", body)
 		if err != nil {
+			fmt.Println("Error creating the request to nova.fr:")
 			log.Fatal(err)
 		}
 		req.Header.Set("Authority", "www.nova.fr")
 		req.Header.Set("Accept", "*/*")
-		req.Header.Set("Accept-Language", "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7,es-US;q=0.6,es;q=0.5")
-		req.Header.Set("Cache-Control", "no-cache")
+		req.Header.Set("Accept-Language", "fr-FR,fr;q=0.9")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 		req.Header.Set("Dnt", "1")
 		req.Header.Set("Origin", "https://www.nova.fr")
-		req.Header.Set("Pragma", "no-cache")
 		req.Header.Set("Referer", "https://www.nova.fr/c-etait-quoi-ce-titre/")
 		req.Header.Set("Sec-Ch-Ua", "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\"")
 		req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
@@ -171,14 +189,45 @@ func getPlaylist(date time.Time) *nova.Playlist {
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36")
 		req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Fatal(err)
+		// wait 1 second between requests
+		if time.Since(lastRequest) < 2*time.Second {
+			fmt.Println(".")
+			time.Sleep(time.Second - time.Since(lastRequest))
+		}
+		var resp *http.Response
+		for _, backoff := range backoffSchedule {
+			resp, err = client.Do(req)
+			if err != nil {
+				fmt.Println("Error getting the playlist from nova.fr, payload", payload)
+				// print the response's body
+				body, _ := ioutil.ReadAll(resp.Body)
+				fmt.Println(string(body))
+				fmt.Println("Waiting", backoff, "before retrying")
+				time.Sleep(backoff)
+				continue
+			}
+
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				fmt.Println("Error getting the playlist from nova.fr, payload", payload)
+				// print the response's body
+				body, _ := ioutil.ReadAll(resp.Body)
+				fmt.Println(string(body))
+				fmt.Println("headers:")
+				resp.Header.Write(os.Stdout)
+				fmt.Printf("status code error: %d %s\n", resp.StatusCode, resp.Status)
+				fmt.Println("Waiting", backoff, "before retrying")
+				time.Sleep(backoff)
+				continue
+			}
+
+			// no errors, no bad status code, we can stop the loop
+			lastRequest = time.Now()
+			break
 		}
 
-		defer resp.Body.Close()
-		if resp.StatusCode != 200 {
-			log.Fatalf("status code error: %d %s", resp.StatusCode, resp.Status)
+		if (resp == nil) || (resp.StatusCode != 200) {
+			log.Fatalf("failed to retrieve playlist for %s, page %d\n", dDate, page)
 		}
 
 		doc, err := goquery.NewDocumentFromReader(resp.Body)
@@ -223,6 +272,62 @@ func getPlaylist(date time.Time) *nova.Playlist {
 	}
 
 	return &playlist
+}
+
+func GetNonce() (string, error) {
+	req, err := http.NewRequest("GET", "https://www.nova.fr/c-etait-quoi-ce-titre/", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authority", "www.nova.fr")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
+	req.Header.Set("Accept-Language", "fr-FR,fr;q=0.9")
+	req.Header.Set("Sec-Ch-Ua", "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\"")
+	req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
+	req.Header.Set("Sec-Ch-Ua-Platform", "\"macOS\"")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("Sec-Fetch-User", "?1")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("status code error: %d %s", resp.StatusCode, resp.Status)
+	}
+	// load the HTML document in goquery
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	var nonce string
+	// look for script.js-defer-js-extra
+	doc.Find(`script`).Each(func(i int, s *goquery.Selection) {
+		jsContent := s.Text()
+		// look for nonce by finding the first index of ajax_nonce
+		nonceIndex := strings.Index(jsContent, "ajax_nonce\":\"")
+		if nonceIndex >= 0 {
+			// look for the next index of "
+			nonceEndIndex := strings.Index(jsContent[nonceIndex:], "\"")
+			// return the nonce
+			nonce = jsContent[nonceIndex+13 : nonceIndex+13+nonceEndIndex]
+		}
+	})
+
+	return nonce, nil
+}
+
+var backoffSchedule = []time.Duration{
+	30 * time.Second,
+	20 * time.Second,
+	30 * time.Second,
+	30 * time.Second,
 }
 
 func splitTimeString(timeStr string) (int, int) {
