@@ -28,6 +28,12 @@ func (t *Track) YTPrimaryArtistURL() string {
 				return fmt.Sprintf("https://music.youtube.com/channel/%s", artist.ID)
 			}
 		}
+		// fmt.Println("YT artist ID missing in the track data for", t.Title, "by", t.Artist, "trying to get it from the search results...")
+		info, err := YTMusic.ArtistInfo(t.Artist)
+		if err == nil && info != nil && info.BrowseID != "" {
+			fmt.Println("Found info from the search results for", t.Artist, ":", info.Artist)
+			return fmt.Sprintf("https://music.youtube.com/channel/%s", info.BrowseID)
+		}
 	}
 	return "#"
 }

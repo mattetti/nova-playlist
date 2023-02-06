@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/raitonoberu/ytmusic"
 )
@@ -41,6 +42,70 @@ func (yt *YTMusicCache) TrackInfo(query string) (*ytmusic.TrackItem, error) {
 
 	// fmt.Printf("Got YTMusicID for %s by %s : %+v/n", track.Title, track.Artist, result.Tracks[0])
 	return result.Tracks[0], nil
+}
+
+func (yt *YTMusicCache) ArtistInfo(query string) (*ytmusic.ArtistItem, error) {
+	if yt == nil {
+		return nil, fmt.Errorf("YT Music cache is not loaded, load it first using nova.LoadYTMusicCache()")
+	}
+	// if query contains "and", split it and search for each artist
+
+	if m := yt.Matches[query]; m != nil {
+		for _, a := range m.Artists {
+			if a != nil && a.BrowseID != "" {
+				return a, nil
+			}
+		}
+		return nil, fmt.Errorf("no artist info found for %s", query)
+	}
+
+	lcQ := strings.ToLower(query)
+	if strings.Contains(lcQ, "and") {
+		return yt.artistInfoForList(strings.Split(lcQ, "and")...)
+	}
+	if strings.Contains(lcQ, "&") {
+		return yt.artistInfoForList(strings.Split(lcQ, "&")...)
+	}
+
+	s := ytmusic.Search(query)
+	fmt.Printf(".")
+	result, err := s.Next()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the next yt music result for %s: %w", query, err)
+	}
+
+	if result == nil || len(result.Artists) == 0 {
+		return nil, fmt.Errorf("no artist results for %s", query)
+	}
+	yt.Matches[query] = result
+
+	for _, a := range result.Artists {
+		if a.BrowseID != "" {
+			return a, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no artist info found for %s", query)
+}
+
+func (yt *YTMusicCache) artistInfoForList(names ...string) (*ytmusic.ArtistItem, error) {
+	if yt == nil {
+		return nil, fmt.Errorf("YT Music cache is not loaded, load it first using nova.LoadYTMusicCache()")
+	}
+	for _, artist := range names {
+		artist = strings.TrimSpace(artist)
+		fmt.Println(artist)
+		artistInfo, err := yt.ArtistInfo(artist)
+		if err != nil {
+			fmt.Printf("failed to get artist info for %s: %v\n", artist, err)
+			continue
+		}
+		if artistInfo != nil && artistInfo.BrowseID != "" {
+			return artistInfo, nil
+		}
+		fmt.Println("No artist info found for ", artist)
+	}
+	return nil, fmt.Errorf("no artist info found")
 }
 
 func (yt *YTMusicCache) Save() error {
