@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -157,8 +158,6 @@ func getPlaylist(date time.Time, nonce string) *nova.Playlist {
 	for page < 100 && nbrItems > 0 {
 		page++
 
-		client := &http.Client{}
-
 		dDate = fmt.Sprintf("%04d-%02d-%02d", t.Year(), t.Month(), t.Day())
 		payload := "action=loadmore_programs"
 		payload += "&afp_nonce=" + nonce
@@ -178,6 +177,7 @@ func getPlaylist(date time.Time, nonce string) *nova.Playlist {
 		req.Header.Set("Accept-Language", "fr-FR,fr;q=0.9")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
 		req.Header.Set("Dnt", "1")
+		req.Header.Set("Cache-Control", "no-cache")
 		req.Header.Set("Origin", "https://www.nova.fr")
 		req.Header.Set("Referer", "https://www.nova.fr/c-etait-quoi-ce-titre/")
 		req.Header.Set("Sec-Ch-Ua", "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\"")
@@ -189,9 +189,8 @@ func getPlaylist(date time.Time, nonce string) *nova.Playlist {
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36")
 		req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
-		// wait 1 second between requests
+		// wait 2 second between requests (throttling to not overwhelm the server)
 		if time.Since(lastRequest) < 2*time.Second {
-			fmt.Println(".")
 			time.Sleep(time.Second - time.Since(lastRequest))
 		}
 		var resp *http.Response
@@ -292,7 +291,7 @@ func GetNonce() (string, error) {
 	req.Header.Set("Upgrade-Insecure-Requests", "1")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -321,6 +320,19 @@ func GetNonce() (string, error) {
 	})
 
 	return nonce, nil
+}
+
+var client http.Client
+
+func init() {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		log.Fatalf("Got error while creating cookie jar %s", err.Error())
+	}
+
+	client = http.Client{
+		Jar: jar,
+	}
 }
 
 var backoffSchedule = []time.Duration{
