@@ -1,12 +1,11 @@
 package nova
 
 import (
+	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -17,6 +16,7 @@ import (
 )
 
 var client http.Client
+var httpCache *HTTPCache
 
 func init() {
 	jar, err := cookiejar.New(nil)
@@ -27,6 +27,9 @@ func init() {
 	client = http.Client{
 		Jar: jar,
 	}
+
+	httpCache = &HTTPCache{dir: "data/http-cache"}
+	os.MkdirAll(httpCache.dir, 0755)
 }
 
 var backoffSchedule = []time.Duration{
@@ -42,7 +45,7 @@ func GetPlaylist(date time.Time, nonce string) *Playlist {
 
 	page := 0
 	nbrItems := 99
-	dDate := fmt.Sprintf("%d-%d-%d", t.Year(), t.Month(), t.Day())
+	// dDate := fmt.Sprintf("%d-%d-%d", t.Year(), t.Month(), t.Day())
 
 	playlist := &Playlist{Year: t.Year(), Month: int(t.Month()), Day: t.Day()}
 	err := playlist.LoadFromDisk()
@@ -63,79 +66,23 @@ func GetPlaylist(date time.Time, nonce string) *Playlist {
 	for page < 100 && nbrItems > 0 {
 		page++
 
-		dDate = fmt.Sprintf("%04d-%02d-%02d", t.Year(), t.Month(), t.Day())
-		payload := "action=loadmore_programs"
-		payload += "&afp_nonce=" + nonce
-		payload += "&date=" + dDate
-		payload += "&time=" + url.QueryEscape("23:59")
-		payload += "&page=" + fmt.Sprintf("%d", page)
-		payload += "&radio=910"
-
-		body := strings.NewReader(payload)
-		req, err := http.NewRequest("POST", "https://www.nova.fr/wp-admin/admin-ajax.php", body)
-		if err != nil {
-			fmt.Println("Error creating the request to nova.fr:")
-			log.Fatal(err)
-		}
-		req.Header.Set("Authority", "www.nova.fr")
-		req.Header.Set("Accept", "*/*")
-		req.Header.Set("Accept-Language", "fr-FR,fr;q=0.9")
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-		req.Header.Set("Dnt", "1")
-		req.Header.Set("Cache-Control", "no-cache")
-		req.Header.Set("Origin", "https://www.nova.fr")
-		req.Header.Set("Referer", "https://www.nova.fr/c-etait-quoi-ce-titre/")
-		req.Header.Set("Sec-Ch-Ua", "\"Not_A Brand\";v=\"99\", \"Google Chrome\";v=\"109\", \"Chromium\";v=\"109\"")
-		req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
-		req.Header.Set("Sec-Ch-Ua-Platform", "\"macOS\"")
-		req.Header.Set("Sec-Fetch-Dest", "empty")
-		req.Header.Set("Sec-Fetch-Mode", "cors")
-		req.Header.Set("Sec-Fetch-Site", "same-origin")
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36")
-		req.Header.Set("X-Requested-With", "XMLHttpRequest")
-
-		// wait 2 second between requests (throttling to not overwhelm the server)
+		// wait 2 seconds between requests (throttling to not overwhelm the server)
 		if time.Since(lastRequest) < 2*time.Second {
 			time.Sleep(time.Second - time.Since(lastRequest))
 		}
-		var resp *http.Response
-		for _, backoff := range backoffSchedule {
-			resp, err = client.Do(req)
-			if err != nil {
-				fmt.Println("Error getting the playlist from nova.fr, payload", payload)
-				// print the response's body
-				body, _ := ioutil.ReadAll(resp.Body)
-				fmt.Println(string(body))
-				fmt.Println("Waiting", backoff, "before retrying")
-				time.Sleep(backoff)
-				continue
-			}
-
-			defer resp.Body.Close()
-			if resp.StatusCode != 200 {
-				fmt.Println("Error getting the playlist from nova.fr, payload", payload)
-				// print the response's body
-				body, _ := ioutil.ReadAll(resp.Body)
-				fmt.Println(string(body))
-				fmt.Println("headers:")
-				resp.Header.Write(os.Stdout)
-				fmt.Printf("status code error: %d %s\n", resp.StatusCode, resp.Status)
-				fmt.Println("Waiting", backoff, "before retrying")
-				time.Sleep(backoff)
-				continue
-			}
-
-			// no errors, no bad status code, we can stop the loop
-			lastRequest = time.Now()
-			break
-		}
-
-		if (resp == nil) || (resp.StatusCode != 200) {
-			log.Printf("failed to retrieve playlist for %s, page %d\n", dDate, page)
+		body, fromCache, err := httpCache.GetPlaylistPage(t, page, nonce)
+		if err != nil {
+			fmt.Println("Error getting the playlist page:", err)
 			return nil
 		}
+		if !fromCache {
+			lastRequest = time.Now()
+		}
 
-		doc, err := goquery.NewDocumentFromReader(resp.Body)
+		// create a bytes reader from the body
+		r := bytes.NewReader(body)
+
+		doc, err := goquery.NewDocumentFromReader(r)
 		if err != nil {
 			fmt.Println("Error creating goquery document:", err)
 			return nil
@@ -271,4 +218,12 @@ func splitTimeString(timeStr string) (int, int) {
 		panic(err)
 	}
 	return h, m
+}
+
+func FileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }
