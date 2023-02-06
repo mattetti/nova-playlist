@@ -26,7 +26,6 @@ var HTMLTmpl = `
 </head>
 <body>
 	<h1>Radio Nova {{.Name}}</h1>
-	<button id="random-button">Select a Random Song</button>
 	<table class="playlist">
 		<thead>
 			<tr>
@@ -40,10 +39,10 @@ var HTMLTmpl = `
 		</thead>
 		<tbody class="playlist">
 			{{range $index, $track := .Tracks}}
-			<tr class="playlist-entry">
+			<tr class="playlist-entry" data-title="{{.Title}}">
 				<td class="position">{{addOne $index}}</td>
 				<td class="artwork">
-					<a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy"/></a>
+					<a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy" /></a>
 				</td>
 				<td class="track">
 				<a href="{{.YTMusicURL}}" target="_blank"><span class="title">{{.Title}}</span></a>
@@ -58,6 +57,7 @@ var HTMLTmpl = `
 			{{end}}
 		</tbody>
 	</table>
+	<button id="random-button">Select a Random Song</button>
 </body>
 </html>
 `
