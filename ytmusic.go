@@ -1,6 +1,7 @@
 package nova
 
 import (
+	"compress/gzip"
 	"encoding/gob"
 	"fmt"
 	"os"
@@ -9,7 +10,7 @@ import (
 )
 
 var (
-	YTMusicCachePath = "data/ytmusic.gob"
+	YTMusicCachePath = "data/ytmusic.gob.gz"
 	YTMusic          *YTMusicCache
 )
 
@@ -52,7 +53,10 @@ func (yt *YTMusicCache) Save() error {
 	}
 	defer file.Close()
 
-	encoder := gob.NewEncoder(file)
+	gzipWriter := gzip.NewWriter(file)
+	defer gzipWriter.Close()
+
+	encoder := gob.NewEncoder(gzipWriter)
 	if err := encoder.Encode(yt); err != nil {
 		return fmt.Errorf("failed to encode the ytmusic cache %w", err)
 	}
@@ -76,11 +80,9 @@ func LoadYTMusicCache() (*YTMusicCache, error) {
 		}
 	}
 
-	// openYTMusicCache and load it into memory, it uses gob
-	// if the file doesn't exist, it creates it
 	file, err := os.Open(YTMusicCachePath)
 	if err != nil {
-		fmt.Printf("failed to open the file from disk %w\n", err)
+		fmt.Printf("failed to open the file from disk %v\n", err)
 		fmt.Println("Creating a new cache")
 		file, err = os.Create(YTMusicCachePath)
 		if err != nil {
@@ -92,8 +94,16 @@ func LoadYTMusicCache() (*YTMusicCache, error) {
 	defer file.Close()
 
 	YTMusic = &YTMusicCache{Matches: make(map[string]*ytmusic.SearchResult)}
+
 	// decode the file into playlist
-	decoder := gob.NewDecoder(file)
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzipReader.Close()
+
+	// decode the file into playlist
+	decoder := gob.NewDecoder(gzipReader)
 	if err := decoder.Decode(YTMusic); err != nil {
 		return nil, fmt.Errorf("failed to decode the yt music cache %w", err)
 	}
