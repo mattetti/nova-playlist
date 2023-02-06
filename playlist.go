@@ -27,7 +27,7 @@ var HTMLTmpl = `
 <body>
 	<h1>Radio Nova {{.Name}}</h1>
 	<button id="random-button">Select a Random Song</button>
-	<table>
+	<table class="playlist">
 		<thead>
 			<tr>
 				<th class="position">#</th>
@@ -35,21 +35,23 @@ var HTMLTmpl = `
 				<th>Artwork</th>
 				<th>Play</th>
 				<th>Duration</th>
-				<th>Play Count</th>
+				<th>Plays</th>
 			</tr>
 		</thead>
-		<tbody>
+		<tbody class="playlist">
 			{{range $index, $track := .Tracks}}
 			<tr class="playlist-entry">
 				<td class="position">{{addOne $index}}</td>
-				<td class="track"><a href="{{.YTMusicURL}}"  target="_blank"> {{.Title}}</a>
-				by <a href="{{.YTPrimaryArtistURL}}"  target="_blank"> {{.Artist}}</a></td>
+				<td class="track">
+				<a href="{{.YTMusicURL}}" target="_blank"><span class="title">{{.Title}}</span></a>
+				by <a href="{{.YTPrimaryArtistURL}}" target="_blank"><span class="artist-name">{{.Artist}}</span></a></td>
 				<td class="artwork">
 					<a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy"/></a>
 				</td>
 				<td class="dsp-links">
-					<a href="{{.YTMusicURL}}" target="_blank"><img src="images/youtube-music.svg"/></a>
-					<a href="{{.SpotifyURL}}" target="_blank"><img src="images/spotify.svg"/></a> </td>
+					<a class="ytmusic" href="{{.YTMusicURL}}" target="_blank"><img src="images/youtube-music.svg"/></a>
+					<a class="spotify" href="{{.SpotifyURL}}" target="_blank"><img src="images/spotify.svg"/></a>
+				</td>
 				<td class="duration">{{.YTDuration}}</td>
 				<td class="playcount">{{.Count}}</td>
 			</tr>
