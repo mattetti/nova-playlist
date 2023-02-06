@@ -43,6 +43,7 @@ func GetPlaylist(date time.Time, nonce string) *Playlist {
 	t := date
 	fmt.Println("Getting the playlist for", t.String())
 
+	totalNbrItems := 0
 	page := 0
 	nbrItems := 99
 	// dDate := fmt.Sprintf("%d-%d-%d", t.Year(), t.Month(), t.Day())
@@ -63,6 +64,7 @@ func GetPlaylist(date time.Time, nonce string) *Playlist {
 	}
 
 	lastRequest := time.Now()
+
 	for page < 100 && nbrItems > 0 {
 		page++
 
@@ -116,17 +118,23 @@ func GetPlaylist(date time.Time, nonce string) *Playlist {
 			playlist.Tracks = append(playlist.Tracks, track)
 		})
 
+		totalNbrItems += nbrItems
 		fmt.Println("Page:", page, "Number of Items:", nbrItems)
 	}
 
-	if err = playlist.SaveToDisk(); err != nil {
-		log.Fatal(err)
+	if totalNbrItems == 0 {
+		fmt.Println("No items found for", t.String())
+		return nil
+	} else {
+		if err = playlist.SaveToDisk(); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	return playlist
 }
 
-func GetPlaylists(startDate, endDate time.Time) []*Playlist {
+func GetPlaylists(startDate, endDate time.Time) ([]*Playlist, error) {
 	nonce, err := GetNonce()
 	if err != nil {
 		fmt.Println("Error getting the nonce:", err)
@@ -137,12 +145,14 @@ func GetPlaylists(startDate, endDate time.Time) []*Playlist {
 
 	for date := startDate; date.Before(endDate); date = date.AddDate(0, 0, 1) {
 		playlist := GetPlaylist(date, nonce)
-		if playlist != nil {
+		if playlist == nil {
+			err = fmt.Errorf("Error getting the playlist for %s", date.String())
+		} else {
 			playlists = append(playlists, playlist)
 		}
 	}
 
-	return playlists
+	return playlists, err
 }
 
 func GetNonce() (string, error) {

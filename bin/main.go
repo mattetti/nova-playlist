@@ -45,6 +45,9 @@ func main() {
 	}
 	firstDayOfMonth := time.Date(date.Year(), time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	lastDayOfMonth := time.Date(date.Year(), time.Month(month)+1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, -1)
+	if lastDayOfMonth.After(time.Now().UTC()) {
+		lastDayOfMonth = time.Now().UTC()
+	}
 
 	dateStr := monthEnglishName(time.Month(month)) + "-" + strconv.Itoa(date.Year())
 	monthlyPlaylist := nova.Playlist{
@@ -60,8 +63,11 @@ func main() {
 
 	// if the user passed a -fetch flag, run the code, otherwise exit
 	if *fetchFlag {
-
-		playlists := nova.GetPlaylists(firstDayOfMonth, lastDayOfMonth)
+		var err error
+		playlists, err := nova.GetPlaylists(firstDayOfMonth, lastDayOfMonth)
+		if err != nil {
+			log.Fatalf("Something went wrong trying to get the playlists from %s to %s - %v", firstDayOfMonth, lastDayOfMonth, err)
+		}
 		for _, playlist := range playlists {
 			monthlyPlaylist.AddTracks(playlist.Tracks)
 		}

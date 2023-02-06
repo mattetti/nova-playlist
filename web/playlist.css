@@ -8,11 +8,12 @@ body {
 }
 
 h1 {
-  text-align: center;
-  color: rgb(245, 245, 245);
-  margin-top: 50px;
   font-size: 36px;
   font-weight: bold;
+  text-align: center;
+  color: #fff;
+  margin-top: 50px;
+  text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.3);
 }
 
 h2 {
@@ -38,14 +39,35 @@ th, td {
 }
 
 th {
+  background-color: #e8ebef;
+  color: #1E1E1E;
   font-size: 18px;
-  background-color: #222;
-	color: #fff;
-	font-weight: bold;
+  font-weight: bold;
+  padding: 10px;
+  text-align: center;
+  /* border: 1px solid #00B8D4; */
+}
+
+th:hover {
+  background-color: #f4edf070;
+  color: #1E1E1E;
+  font-weight: bold;
+  cursor: default;
+}
+
+
+tr {
+  transition: background-color 0.3s ease;
 }
 
 tr:hover {
-	background-color: #444;
+  background-color: #f4edf070;
+}
+
+tr.selected {
+  /* background-color: #f4edf070; */
+  background-color: #ff8a80;
+  font-weight: bold;
 }
 
 th.position {
@@ -65,12 +87,17 @@ td.playcount, td.position, td.artwork, td.duration {
   text-align: center;
 }
 
+td.artwork {
+  width: 75px;
+}
+
 td.track {
   text-transform: capitalize;
 }
 
 td.dsp-links {
   text-align: center;
+  width: 60px;
 }
 
 td.dsp-links img {
@@ -86,10 +113,6 @@ td.dsp-links img {
 img.artwork {
   width: 150px;
   height: 150px;
-}
-
-table tbody tr:hover {
-  background-color: #f4edf070;
 }
 
 a {
@@ -117,4 +140,28 @@ ul#playlists {
   display:flex;
   flex-direction:column;
   align-items:center;
+}
+
+button#random-button {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  padding: 15px 25px;
+  font-size: 18px;
+  font-weight: bold;
+  background-color: #1E1E1E;
+  color: #fff;
+  border-radius: 50px;
+  border: 2px solid #fff;
+  transition: all 0.3s ease-in-out;
+}
+
+button#random-button:hover {
+  background-color: #fff;
+  color: #1E1E1E;
+  cursor: pointer;
+}
+
+button#random-button:active {
+  transform: translateY(3px);
 }

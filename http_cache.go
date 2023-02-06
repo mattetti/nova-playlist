@@ -100,7 +100,8 @@ func (c *HTTPCache) GetPlaylistPage(date time.Time, page int, nonce string) ([]b
 		return nil, false, fmt.Errorf("failed to retrieve playlist for %s, page %d - status code: %d", dDate, page, resp.StatusCode)
 	}
 	ioBody, err := ioutil.ReadAll(resp.Body)
-	if err == nil {
+	// protect against empty responses
+	if err == nil && len(ioBody) > 12 {
 		dir := filepath.Dir(cacheFilePath)
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			_ = os.MkdirAll(dir, 0700)

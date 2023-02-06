@@ -22,9 +22,11 @@ var HTMLTmpl = `
 	<title>Radio Nova {{.Name}} - Playlist</title>
 	<link rel="stylesheet" type="text/css" href="playlist.css">
 	<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
+	<script src="playlist.js"></script>
 </head>
 <body>
 	<h1>Radio Nova {{.Name}}</h1>
+	<button id="random-button">Select a Random Song</button>
 	<table>
 		<thead>
 			<tr>
