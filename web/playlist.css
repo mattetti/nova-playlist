@@ -179,6 +179,61 @@ td.position span {
   padding: 10px 20px 10px 20px;
 }
 
+div.ranking-delta {
+  /* display: flex;
+  flex-direction: column; */
+  justify-content: center;
+  width: 40px;
+  height: auto;
+  display: flex;
+  align-items: center;
+  align-content: center;
+  flex-direction: column;
+}
+
+.ranking-delta svg{
+  display: flex;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  box-shadow: none;
+  border: none;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
+}
+
+.ranking-delta.up .ranking-delta-num {
+  position: relative;
+  top: -18px;
+  font-size: 1em;
+  width: 40px;
+  text-align: center;
+}
+
+.ranking-delta.down .ranking-delta-num {
+  position: relative;
+  bottom: -18px;
+  font-size: 1em;
+  width: 40px;
+  text-align: center;
+}
+
+.ranking-delta.up svg{
+  transform: rotate(180deg);
+}
+
+.arrow-up{
+  fill: #49ae50;
+}
+
+.arrow-down{
+  fill: #f44436;
+}
+
+
+
+
 td.playcount {
   width: fit-content;
   position: relative;

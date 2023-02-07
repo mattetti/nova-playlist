@@ -35,15 +35,23 @@ var HTMLTmpl = `
 	</nav>
 	<table class="playlist">
 		<tbody class="playlist">
+			{{$playlist := .}}
 			{{range $index, $track := .Tracks}}
+			{{$previousRanking := $playlist.PreviousRanking $track}}
 			<tr class="playlist-entry" data-title="{{.Title}}">
 				<td class="position"><span>{{addOne $index}}</span></td>
+				<td class="rankinkDelta">
+				{{if gt $previousRanking -1}}
+					{{ rankingDelta $index $previousRanking }}</span>
+				{{ end }}
+				</td>
 				<td class="artwork">
 					<a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy" /></a>
 				</td>
 				<td class="track">
-				<a href="{{.YTMusicURL}}" target="_blank"><span class="title">{{.Title}}</span></a>
-				by <a href="{{.YTPrimaryArtistURL}}" target="_blank"><span class="artist-name">{{.Artist}}</span></a></td>
+					<a href="{{.YTMusicURL}}" target="_blank"><span class="title">{{.Title}}</span></a>
+				by <a href="{{.YTPrimaryArtistURL}}" target="_blank"><span class="artist-name">{{.Artist}}</span></a>
+				</td>
 				<td class="duration">
 					<span class="duration">{{.YTDuration}}</span>
 				</td>
@@ -261,13 +269,48 @@ func (p *Playlist) Title() string {
 	return p.Name
 }
 
+func (p *Playlist) PreviousRanking(track *Track) int {
+	if p == nil || p.PreviousPlaylist == nil {
+		return -1
+	}
+	for i, t := range p.PreviousPlaylist.Tracks {
+		if t.Key() == track.Key() {
+			return i
+		}
+	}
+	return -1
+}
+
 func (p *Playlist) ToHTML() ([]byte, error) {
 	// TODO: check if we have a previous/next playlist
 	// get the previous playlist to get the ranking changes
 	t, err := template.New("playlist").Funcs(template.FuncMap{
-		"addOne": addOne,
+		"addOne": func(n int) int {
+			return n + 1
+		},
 		"unescapeHTML": func(s string) template.HTML {
 			return template.HTML(s)
+		},
+		"minus": func(a, b int) int {
+			return a - b
+		},
+		"rankingDelta": func(newPosition, oldPosition int) template.HTML {
+			if oldPosition == -1 {
+				return ""
+			}
+			if newPosition < oldPosition {
+				diff := oldPosition - newPosition
+				return template.HTML(fmt.Sprintf(`<div class="ranking-delta up">
+  <svg xmlns="http://www.w3.org/2000/svg" height="48" width="48"><path class="arrow-up" d="m24 30-10-9.95h20Z"></path></svg>
+  <span class="ranking-delta-num">%d</span>
+</div>`, diff))
+			} else {
+				diff := newPosition - oldPosition
+				return template.HTML(fmt.Sprintf(`<div class="ranking-delta down">
+				<span class="ranking-delta-num">%d</span>
+				<svg xmlns="http://www.w3.org/2000/svg" height="48" width="48"><path class="arrow-down" d="m24 30-10-9.95h20Z"></path></svg>
+			</div>`, diff))
+			}
 		},
 	}).Parse(HTMLTmpl)
 	if err != nil {
