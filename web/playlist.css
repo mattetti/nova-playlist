@@ -61,7 +61,11 @@ tr {
   transition: background-color 0.3s ease;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1000px) {
+  table {
+    width: 100%;
+  }
+
   table tbody tr:active {
     background-color: #f4edf0;
   }
@@ -190,10 +194,10 @@ button#random-button {
   transition: all 0.3s ease-in-out;
 }
 
-@media only screen and (max-width: 768px) {
+@media only screen and (max-width: 980px) {
   button#random-button {
-    font-size: 20px;
-    padding: 15px 20px;
+    font-size: 24px;
+    padding: 15px 25px;
   }
 }
 

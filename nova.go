@@ -68,8 +68,8 @@ func GetPlaylist(date time.Time, nonce string) *Playlist {
 	for page < 100 && nbrItems > 0 {
 		page++
 
-		// wait 2 seconds between requests (throttling to not overwhelm the server)
-		if time.Since(lastRequest) < 2*time.Second {
+		// wait a bit in between requests (throttling to not overwhelm the server)
+		if time.Since(lastRequest) < (time.Second) {
 			time.Sleep(time.Second - time.Since(lastRequest))
 		}
 		body, fromCache, err := httpCache.GetPlaylistPage(t, page, nonce)
@@ -236,4 +236,38 @@ func FileExists(filename string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+func MonthEnglishName(month time.Month) string {
+
+	var monthName string
+	switch month {
+	case time.January:
+		monthName = "January"
+	case time.February:
+		monthName = "February"
+	case time.March:
+		monthName = "March"
+	case time.April:
+		monthName = "April"
+	case time.May:
+		monthName = "May"
+	case time.June:
+		monthName = "June"
+	case time.July:
+		monthName = "July"
+	case time.August:
+		monthName = "August"
+	case time.September:
+		monthName = "September"
+	case time.October:
+		monthName = "October"
+	case time.November:
+		monthName = "November"
+	case time.December:
+		monthName = "December"
+	default:
+		monthName = "Unknown"
+	}
+	return monthName
 }

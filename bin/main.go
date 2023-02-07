@@ -18,6 +18,7 @@ import (
 
 var monthFlag = flag.Int("month", 0, "the month to process (e.g. 1 for January, 2 for February, etc)")
 var fetchFlag = flag.Bool("fetch", false, "fetch the playlist from the Radio Nova website")
+var genFlag = flag.Bool("gen", true, "generate the HTML page for the playlist")
 
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
@@ -35,7 +36,7 @@ func main() {
 		fmt.Println("Invalid month flag, please pass a number between 1 and 12")
 		flag.Usage()
 		*monthFlag = int(date.Month() - 1)
-		fmt.Printf("using last month (%s) by default\n", monthEnglishName(time.Month(*monthFlag)))
+		fmt.Printf("using last month (%s) by default\n", nova.MonthEnglishName(time.Month(*monthFlag)))
 	}
 
 	month := *monthFlag
@@ -49,7 +50,7 @@ func main() {
 		lastDayOfMonth = time.Now().UTC()
 	}
 
-	dateStr := monthEnglishName(time.Month(month)) + "-" + strconv.Itoa(date.Year())
+	dateStr := nova.MonthEnglishName(time.Month(month)) + "-" + strconv.Itoa(date.Year())
 	monthlyPlaylist := nova.Playlist{
 		Name:  dateStr,
 		Year:  date.Year(),
@@ -71,42 +72,59 @@ func main() {
 		for _, playlist := range playlists {
 			monthlyPlaylist.AddTracks(playlist.Tracks)
 		}
-	} else {
-		// load the playlist from disk
-		if err := monthlyPlaylist.LoadFromDisk(); err != nil {
-			fmt.Println("Error loading the playlist from disk:", err)
-			fmt.Println("Run the program with the -fetch flag to fetch the historical data from the Radio Nova website")
-			os.Exit(1)
+		monthlyPlaylist.Sort()
+		monthlyPlaylist.PopulateYTIDs()
+		if err := monthlyPlaylist.SaveToDisk(); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println()
+		for i := 0; i < 100; i++ {
+			track := monthlyPlaylist.Tracks[i]
+			fmt.Printf("(%d) %s by %s  [%d] - %s\n", i+1, track.Title, track.Artist, track.Count, track.YTMusicURL())
 		}
 	}
 
-	monthlyPlaylist.Sort()
-	monthlyPlaylist.PopulateYTIDs()
-	if err := monthlyPlaylist.SaveToDisk(); err != nil {
-		log.Fatal(err)
+	if *genFlag {
+		// generate the HTML pages
+		// look for all the playlists in the data directory
+		files, err := os.ReadDir(nova.PlaylistDataPath)
+		if err != nil {
+			log.Fatal(fmt.Errorf("failed to read path %s - %v", nova.PlaylistDataPath, err))
+		}
+		index := &Index{Playlists: make(map[*nova.Playlist]string)}
+
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
+			if !strings.HasPrefix(file.Name(), "playlist-") && !strings.HasSuffix(file.Name(), ".gob") {
+				continue
+			}
+			playlist, err := nova.LoadPlaylistFromFile(filepath.Join(nova.PlaylistDataPath, file.Name()))
+			if err != nil {
+				log.Fatal(fmt.Errorf("failed to load playlist at path %s, %v", file.Name(), err))
+			}
+			fmt.Println("Playlist", playlist.Name, "loaded")
+			htmlFilename := filepath.Join("web", playlist.Name+".html")
+			htmlF, err := os.Create(htmlFilename)
+			if err != nil {
+				log.Fatal(err)
+			}
+			data, err := playlist.ToHTML()
+			if err != nil {
+				log.Fatal(err)
+			}
+			htmlF.Write(data)
+			htmlF.Close()
+			fmt.Println("Generated HTML file", htmlFilename)
+			index.Playlists[playlist] = playlist.Name + ".html"
+		}
+
+		if err = index.SaveToDisk(); err != nil {
+			log.Fatal(err)
+		}
 	}
 
-	fmt.Println()
-	for i := 0; i < 100; i++ {
-		track := monthlyPlaylist.Tracks[i]
-		fmt.Printf("(%d) %s by %s  [%d] - %s\n", i+1, track.Title, track.Artist, track.Count, track.YTMusicURL())
-	}
-
-	htmlF, err := os.Create(filepath.Join("web", monthlyPlaylist.Name+".html"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer htmlF.Close()
-	data, err := monthlyPlaylist.ToHTML()
-	if err != nil {
-		log.Fatal(err)
-	}
-	htmlF.Write(data)
-
-	index := &Index{}
-	if err = index.SaveToDisk(); err != nil {
-		log.Fatal(err)
-	}
 }
 
 func createRequiredDirectories() {
@@ -124,47 +142,19 @@ func createRequiredDirectories() {
 	}
 }
 
-func monthEnglishName(month time.Month) string {
-
-	var monthName string
-	switch month {
-	case time.January:
-		monthName = "January"
-	case time.February:
-		monthName = "February"
-	case time.March:
-		monthName = "March"
-	case time.April:
-		monthName = "April"
-	case time.May:
-		monthName = "May"
-	case time.June:
-		monthName = "June"
-	case time.July:
-		monthName = "July"
-	case time.August:
-		monthName = "August"
-	case time.September:
-		monthName = "September"
-	case time.October:
-		monthName = "October"
-	case time.November:
-		monthName = "November"
-	case time.December:
-		monthName = "December"
-	default:
-		monthName = "Unknown"
-	}
-	return monthName
-}
-
 type PlaylistFile struct {
-	Year  string
-	Month string
+	Year  int
+	Month int
 	Path  string
 }
+
+func (p *PlaylistFile) Title() string {
+	return nova.MonthEnglishName(time.Month(p.Month)) + " " + strconv.Itoa(p.Year)
+}
+
 type Index struct {
 	PlaylistFiles []*PlaylistFile
+	Playlists     map[*nova.Playlist]string
 }
 
 var HTMLIndexTmpl = `
@@ -181,7 +171,7 @@ var HTMLIndexTmpl = `
 	</h2>
 		<ul id="playlists">
 		{{range $index, $track := .PlaylistFiles}}
-			<li><a href="{{.Path}}"> {{.Month}} {{.Year}}</a></li>
+			<li><a href="{{.Path}}">{{.Title}}</a></li>
 		{{end}}
 		</ul>
 </body>
@@ -204,33 +194,21 @@ func (idx *Index) ToHTML() ([]byte, error) {
 }
 
 func (idx *Index) SaveToDisk() error {
-	files, err := filepath.Glob(filepath.Join("web", "*.html"))
-	if err != nil {
-		return err
-	}
 
-	for _, f := range files {
-		filename := filepath.Base(f)
-		if filename != "index.html" {
-			segments := strings.Split(filename[:len(filename)-5], "-")
-			idx.PlaylistFiles = append(idx.PlaylistFiles, &PlaylistFile{
-				Month: segments[0],
-				Year:  segments[1],
-				Path:  filename,
-			})
+	for playlist, path := range idx.Playlists {
+		PlaylistFile := &PlaylistFile{
+			Year:  playlist.Year,
+			Month: playlist.Month,
+			Path:  path,
 		}
+		idx.PlaylistFiles = append(idx.PlaylistFiles, PlaylistFile)
 	}
 
-	// sort by year and month
 	sort.Slice(idx.PlaylistFiles, func(i, j int) bool {
-		year1, _ := strconv.Atoi(idx.PlaylistFiles[i].Year)
-		year2, _ := strconv.Atoi(idx.PlaylistFiles[j].Year)
-		if year1 == year2 {
-			month1, _ := strconv.Atoi(idx.PlaylistFiles[i].Month)
-			month2, _ := strconv.Atoi(idx.PlaylistFiles[j].Month)
-			return month1 < month2
+		if idx.PlaylistFiles[i].Year == idx.PlaylistFiles[j].Year {
+			return idx.PlaylistFiles[i].Month > idx.PlaylistFiles[j].Month
 		}
-		return year1 < year2
+		return idx.PlaylistFiles[i].Year > idx.PlaylistFiles[j].Year
 	})
 
 	html, err := idx.ToHTML()

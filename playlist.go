@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 var (
@@ -25,7 +26,7 @@ var HTMLTmpl = `
 	<script src="playlist.js"></script>
 </head>
 <body>
-	<h1>Radio Nova {{.Name}}</h1>
+	<h1>Radio Nova {{.Title}}</h1>
 	<table class="playlist">
 		<thead>
 			<tr>
@@ -157,6 +158,24 @@ func (p *Playlist) OldFilename() string {
 	return fmt.Sprintf("playlist-%s.gob", p.Name)
 }
 
+func LoadPlaylistFromFile(filepath string) (*Playlist, error) {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open the file %w", err)
+	}
+	defer file.Close()
+
+	p := &Playlist{}
+
+	// decode the file into playlist
+	decoder := gob.NewDecoder(file)
+	if err := decoder.Decode(p); err != nil {
+		return nil, fmt.Errorf("failed to decode the binary file %w", err)
+	}
+
+	return p, nil
+}
+
 func (p *Playlist) LoadFromDisk() error {
 	file, err := os.Open(filepath.Join(p.Path(), p.Filename()))
 	if err != nil {
@@ -226,7 +245,21 @@ func (p *Playlist) AddTracks(tracks []*Track) {
 	}
 }
 
+func (p *Playlist) Title() string {
+	if p == nil {
+		return ""
+	}
+
+	if p.Year > 0 && p.Month > 0 {
+		return fmt.Sprintf("%s %d", MonthEnglishName(time.Month(p.Month)), p.Year)
+	}
+
+	return p.Name
+}
+
 func (p *Playlist) ToHTML() ([]byte, error) {
+	// TODO: check if we have a previous/next playlist
+	// get the previous playlist to get the ranking changes
 	t, err := template.New("playlist").Funcs(template.FuncMap{
 		"addOne": addOne,
 	}).Parse(HTMLTmpl)
