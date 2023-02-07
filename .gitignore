@@ -1,3 +1,4 @@
 
 web/*.html
-data/*/**
+data/http-cache/*
+data/*/*/*.gob
