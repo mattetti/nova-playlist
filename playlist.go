@@ -34,32 +34,28 @@ var HTMLTmpl = `
 		{{ .NextLink | unescapeHTML }}
 	</nav>
 	<table class="playlist">
-		<thead>
-			<tr>
-				<th class="position">#</th>
-				<th>Artwork</th>
-				<th>Track</th>
-				<th>Play</th>
-				<th>Duration</th>
-				<th>Plays</th>
-			</tr>
-		</thead>
 		<tbody class="playlist">
 			{{range $index, $track := .Tracks}}
 			<tr class="playlist-entry" data-title="{{.Title}}">
-				<td class="position">{{addOne $index}}</td>
+				<td class="position"><span>{{addOne $index}}</span></td>
 				<td class="artwork">
 					<a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy" /></a>
 				</td>
 				<td class="track">
 				<a href="{{.YTMusicURL}}" target="_blank"><span class="title">{{.Title}}</span></a>
 				by <a href="{{.YTPrimaryArtistURL}}" target="_blank"><span class="artist-name">{{.Artist}}</span></a></td>
+				<td class="duration">
+					<span class="duration">{{.YTDuration}}</span>
+				</td>
 				<td class="dsp-links">
 					<a class="ytmusic" href="{{.YTMusicURL}}" target="_blank"><img src="images/youtube-music.svg"/></a>
 					<a class="spotify" href="{{.SpotifyURL}}" target="_blank"><img src="images/spotify.svg"/></a>
 				</td>
-				<td class="duration">{{.YTDuration}}</td>
-				<td class="playcount">{{.Count}}</td>
+				<td class="playcount" data-count={{.Count}}>
+				{{if gt .Count 20}}
+					<img src="images/flame-icon.svg" alt="{{.Count}} plays"/>
+				{{end}}
+				</td>
 			</tr>
 			{{end}}
 		</tbody>
