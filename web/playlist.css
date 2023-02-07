@@ -37,9 +37,10 @@ nav {
 nav a {
   text-decoration: none;
   color: #333;
-  font-size: 18px;
+  font-size: 1em;
   padding: 0 20px;
   transition: all 0.1s ease-in-out;
+  text-align: center;
 }
 
 nav a:hover {
@@ -48,9 +49,10 @@ nav a:hover {
 }
 
 
-nav .previous {
+nav .prev {
   background-repeat: no-repeat;
   background-position: center;
+  text-align: center;
   padding-left: 30px;
 }
 
@@ -58,6 +60,7 @@ nav .next {
   background-repeat: no-repeat;
   background-position: center;
   padding-right: 30px;
+  text-align: center;
 }
 
 nav a:last-of-type {
@@ -113,16 +116,6 @@ th:hover {
 
 tr {
   transition: background-color 0.3s ease;
-}
-
-@media (max-width: 1000px) {
-  table {
-    width: 100%;
-  }
-
-  tr:active {
-    background-color: #f4edf0;
-  }
 }
 
 tr:hover {
@@ -228,7 +221,7 @@ td.artwork {
 
 td.track {
   text-transform: capitalize;
-  padding-left: 10px;
+  text-align: center;
 }
 
 td.track span.title  {
@@ -294,11 +287,62 @@ button#random-button {
   transition: all 0.3s ease-in-out;
 }
 
+@media only screen and (max-width: 1300px) {
+
+  nav a.prev::before {
+    content: '';
+    font-family: 'Open Sans', sans-serif;
+    font-size: 1.2rem;
+    margin-right: 0.5rem;
+  }
+
+  nav a.next::after {
+    content: '';
+    font-family: 'Open Sans', sans-serif;
+    font-size: 1.2rem;
+    margin-left: 0.5rem;
+  }
+}
+
 @media only screen and (max-width: 980px) {
+
+  nav a {
+    font-size: 1em;
+    text-align: center;
+  }
+
+  nav .next {
+    background-repeat: no-repeat;
+    background-position: center;
+    padding-right: 30px;
+  }
+
+  nav a:last-of-type {
+    margin-right: 0;
+  }
+
+  table {
+    width: 100%;
+  }
+
+  tr:active {
+    background-color: #f4edf0;
+  }
+
+  td.track {
+    text-align: center;
+  }
+
   button#random-button {
     font-size: 2em;
     padding: 25px 35px;
   }
+
+  img.artwork {
+    width: 150px;
+    height: 150px;
+  }
+
 }
 
 button#random-button:hover {
