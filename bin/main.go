@@ -162,9 +162,11 @@ func createRequiredDirectories() {
 }
 
 type PlaylistFile struct {
-	Year  int
-	Month int
-	Path  string
+	Year         int
+	Month        int
+	Path         string
+	ThumbnailURL string
+	FeaturedText string
 }
 
 func (p *PlaylistFile) Title() string {
@@ -181,16 +183,16 @@ var HTMLIndexTmpl = `
 <html>
 <head>
 	<title>Radio Nova - Playlists</title>
-	<link rel="stylesheet" type="text/css" href="playlist.css">
+	<link rel="stylesheet" type="text/css" href="index.css">
 	<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
 </head>
 <body>
 	<h1>Radio Nova - Playlists</h1>
-	<h2>Below are the monthly playlists of <a href="https://nova.fr" target="_blank">Radio Nova</a>.
-	</h2>
+	<h2><a href="https://nova.fr" target="_blank">Radio Nova</a>'s monthly rotation playlists</h2>
 		<ul id="playlists">
 		{{range $index, $track := .PlaylistFiles}}
-			<li><a href="{{.Path}}">{{.Title}}</a></li>
+			<li class="playlist" data-featured="{{.FeaturedText}}">
+			<a href="{{.Path}}"><img src="{{.ThumbnailURL}}" class="artwork" alt="{{.FeaturedText}}"/>{{.Title}}</a></li>
 		{{end}}
 		</ul>
 </body>
@@ -216,9 +218,11 @@ func (idx *Index) SaveToDisk() error {
 
 	for playlist, path := range idx.Playlists {
 		PlaylistFile := &PlaylistFile{
-			Year:  playlist.Year,
-			Month: playlist.Month,
-			Path:  path,
+			Year:         playlist.Year,
+			Month:        playlist.Month,
+			Path:         path,
+			ThumbnailURL: playlist.Tracks[0].ThumbURL(),
+			FeaturedText: fmt.Sprintf("Top track: %s by %s", playlist.Tracks[0].Title, playlist.Tracks[0].Artist),
 		}
 		idx.PlaylistFiles = append(idx.PlaylistFiles, PlaylistFile)
 	}

@@ -94,7 +94,6 @@ func (yt *YTMusicCache) artistInfoForList(names ...string) (*ytmusic.ArtistItem,
 	}
 	for _, artist := range names {
 		artist = strings.TrimSpace(artist)
-		fmt.Println(artist)
 		artistInfo, err := yt.ArtistInfo(artist)
 		if err != nil {
 			fmt.Printf("failed to get artist info for %s: %v\n", artist, err)
