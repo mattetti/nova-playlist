@@ -16,7 +16,9 @@ import (
 	"github.com/mattetti/nova-playlist"
 )
 
+var monthsFlag = flag.String("months", "", "comma separated months to process (e.g. 1,2,3 for January, February and March, etc")
 var monthFlag = flag.Int("month", 0, "the month to process (e.g. 1 for January, 2 for February, etc)")
+var yearFlag = flag.Int("year", 0, "the year to process (current if not set)")
 var fetchFlag = flag.Bool("fetch", false, "fetch the playlist from the Radio Nova website")
 var genFlag = flag.Bool("gen", true, "generate the HTML page for the playlist")
 
@@ -32,15 +34,42 @@ func main() {
 	createRequiredDirectories()
 
 	date := time.Now().UTC()
+
+	months := []int{}
+	year := date.Year()
+
+	if *yearFlag > 0 {
+		year = *yearFlag
+	}
+
+	if *monthsFlag != "" {
+		monthsStr := strings.Split(*monthsFlag, ",")
+		// trim the spaces
+		for _, m := range monthsStr {
+			monthInt, err := strconv.Atoi(strings.TrimSpace(m))
+			if err != nil {
+				log.Fatal(fmt.Errorf("Invalid month flag - %w", err))
+			}
+			months = append(months, monthInt)
+		}
+		// process each month
+	}
+
 	if *monthFlag <= 0 || *monthFlag > 12 {
 		fmt.Println("Invalid month flag, please pass a number between 1 and 12")
 		flag.Usage()
-		*monthFlag = int(date.Month() - 1)
+		months = append(months, int(date.Month()-1))
 		fmt.Printf("using last month (%s) by default\n", nova.MonthEnglishName(time.Month(*monthFlag)))
 	}
 
-	month := *monthFlag
-	date = time.Date(date.Year(), time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	for _, month := range months {
+		execute(month, year, *genFlag)
+	}
+
+}
+
+func execute(month int, year int, shouldGenerate bool) {
+	date := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	if date.After(time.Now().UTC()) {
 		date = time.Date(date.Year()-1, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	}
