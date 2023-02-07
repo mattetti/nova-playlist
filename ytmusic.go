@@ -28,7 +28,7 @@ func (yt *YTMusicCache) TrackInfo(query string) (*ytmusic.TrackItem, error) {
 	}
 
 	s := ytmusic.Search(query)
-	fmt.Printf(".")
+	fmt.Printf("ytmusic search for %s\n", query)
 	result, err := s.Next()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the next yt music result for %s: %w", query, err)
@@ -68,7 +68,7 @@ func (yt *YTMusicCache) ArtistInfo(query string) (*ytmusic.ArtistItem, error) {
 	}
 
 	s := ytmusic.Search(query)
-	fmt.Printf(".")
+	fmt.Printf("ytmusic search for %s\n", query)
 	result, err := s.Next()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the next yt music result for %s: %w", query, err)

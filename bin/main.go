@@ -93,6 +93,7 @@ func main() {
 		}
 		index := &Index{Playlists: make(map[*nova.Playlist]string)}
 
+		playlists := []*nova.Playlist{}
 		for _, file := range files {
 			if file.IsDir() {
 				continue
@@ -105,6 +106,24 @@ func main() {
 				log.Fatal(fmt.Errorf("failed to load playlist at path %s, %v", file.Name(), err))
 			}
 			fmt.Println("Playlist", playlist.Name, "loaded")
+			playlists = append(playlists, playlist)
+		}
+		// sort the playlists by year, month
+		sort.Slice(playlists, func(i, j int) bool {
+			if playlists[i].Year == playlists[j].Year {
+				return playlists[i].Month < playlists[j].Month
+			}
+			return playlists[i].Year < playlists[j].Year
+		})
+
+		for i, playlist := range playlists {
+			if i > 0 {
+				playlist.PreviousPlaylist = playlists[i-1]
+				playlists[i-1].NextPlaylist = playlist
+			}
+		}
+
+		for _, playlist := range playlists {
 			htmlFilename := filepath.Join("web", playlist.Name+".html")
 			htmlF, err := os.Create(htmlFilename)
 			if err != nil {

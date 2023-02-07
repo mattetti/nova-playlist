@@ -23,10 +23,16 @@ var HTMLTmpl = `
 	<title>Radio Nova {{.Name}} - Playlist</title>
 	<link rel="stylesheet" type="text/css" href="playlist.css">
 	<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
+
 	<script src="playlist.js"></script>
 </head>
 <body>
 	<h1>Radio Nova {{.Title}}</h1>
+	<nav>
+		{{ .PrevLink | unescapeHTML }}
+		<a href="./">All Playlists</a>
+		{{ .NextLink | unescapeHTML }}
+	</nav>
 	<table class="playlist">
 		<thead>
 			<tr>
@@ -64,11 +70,13 @@ var HTMLTmpl = `
 `
 
 type Playlist struct {
-	Tracks []*Track
-	Name   string
-	Month  int
-	Year   int
-	Day    int
+	Tracks           []*Track
+	Name             string
+	Month            int
+	Year             int
+	Day              int
+	PreviousPlaylist *Playlist
+	NextPlaylist     *Playlist
 }
 
 func (p *Playlist) Sort() {
@@ -262,6 +270,9 @@ func (p *Playlist) ToHTML() ([]byte, error) {
 	// get the previous playlist to get the ranking changes
 	t, err := template.New("playlist").Funcs(template.FuncMap{
 		"addOne": addOne,
+		"unescapeHTML": func(s string) template.HTML {
+			return template.HTML(s)
+		},
 	}).Parse(HTMLTmpl)
 	if err != nil {
 		return nil, err
@@ -278,4 +289,20 @@ func (p *Playlist) ToHTML() ([]byte, error) {
 
 func addOne(n int) int {
 	return n + 1
+}
+
+func (p *Playlist) PrevLink() string {
+	if p == nil || p.PreviousPlaylist == nil {
+		return ""
+	}
+
+	return fmt.Sprintf(`<a href="%s" class="prev">%s</a>`, p.PreviousPlaylist.Name+".html", p.PreviousPlaylist.Title())
+}
+
+func (p *Playlist) NextLink() string {
+	if p == nil || p.NextPlaylist == nil {
+		return ""
+	}
+
+	return fmt.Sprintf(`<a href="%s" class="next">%s</a>`, p.NextPlaylist.Name+".html", p.NextPlaylist.Title())
 }
