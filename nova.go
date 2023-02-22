@@ -146,7 +146,8 @@ func GetPlaylists(startDate, endDate time.Time) ([]*Playlist, error) {
 	for date := startDate; date.Before(endDate); date = date.AddDate(0, 0, 1) {
 		playlist := GetPlaylist(date, nonce)
 		if playlist == nil {
-			err = fmt.Errorf("Error getting the playlist for %s", date.String())
+			fmt.Println("Error getting the playlist for", date.String())
+			// err = fmt.Errorf("Error getting the playlist for %s", date.String())
 		} else {
 			playlists = append(playlists, playlist)
 		}

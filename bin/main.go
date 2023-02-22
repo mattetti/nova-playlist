@@ -62,6 +62,10 @@ func main() {
 		fmt.Printf("using last month (%s) by default\n", nova.MonthEnglishName(time.Month(*monthFlag)))
 	}
 
+	if *monthFlag > 0 && *monthFlag <= 12 {
+		months = append(months, *monthFlag)
+	}
+
 	for _, month := range months {
 		execute(month, year, *genFlag)
 	}
@@ -78,6 +82,7 @@ func execute(month int, year int, shouldGenerate bool) {
 	if lastDayOfMonth.After(time.Now().UTC()) {
 		lastDayOfMonth = time.Now().UTC()
 	}
+	fmt.Println("Processing", firstDayOfMonth, "to", lastDayOfMonth)
 
 	dateStr := nova.MonthEnglishName(time.Month(month)) + "-" + strconv.Itoa(date.Year())
 	monthlyPlaylist := nova.Playlist{
