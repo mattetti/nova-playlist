@@ -71,6 +71,12 @@ async function initializePlayer() {
       setTracks(loadedTracks);
       tracksRef.current = loadedTracks; // Store in ref for event handlers
 
+      // Preload first track in state (but don't play it)
+      if (loadedTracks.length > 0) {
+        setCurrentTrack(loadedTracks[0]);
+        setCurrentIndex(0);
+      }
+
       // Initialize YouTube IFrame API
       if (window.YT) {
         initializeYouTubePlayer();
@@ -204,7 +210,7 @@ async function initializePlayer() {
     };
 
     const playNextTrack = () => {
-      console.log('playNextTrack called');
+      console.log('playNextTrack called, current index:', currentIndex);
       const availableTracks = tracksRef.current;
 
       if (!availableTracks.length) {
@@ -214,8 +220,11 @@ async function initializePlayer() {
 
       let nextIndex;
       if (playMode === 'random') {
-        nextIndex = Math.floor(Math.random() * availableTracks.length);
+        do {
+          nextIndex = Math.floor(Math.random() * availableTracks.length);
+        } while (nextIndex === currentIndex && availableTracks.length > 1);
       } else {
+        // Ensure we move to the next track
         nextIndex = (currentIndex + 1) % availableTracks.length;
       }
 
