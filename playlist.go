@@ -20,55 +20,79 @@ var HTMLTmpl = `
 <!DOCTYPE html>
 <html>
 <head>
-	<title>Radio Nova {{.Name}} - Playlist</title>
-	<link rel="stylesheet" type="text/css" href="playlist.css">
-	<link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
+    <title>Radio Nova {{.Name}} - Playlist</title>
+    <link rel="stylesheet" type="text/css" href="playlist.css">
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
 
-	<script src="playlist.js"></script>
+    <!-- Core dependencies -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+    <!-- Import Lucide Icons from CDN -->
+    <script src="https://unpkg.com/@lucide/react@latest/dist/umd/lucide-react.min.js"></script>
+
+    <!-- Error handling for script loading -->
+    <script>
+        window.addEventListener('error', function(e) {
+            if (e.target.tagName === 'SCRIPT') {
+                console.error('Failed to load script:', e.target.src);
+            }
+        }, true);
+    </script>
 </head>
 <body>
-	<h1>Radio Nova {{.Title}}</h1>
-	<nav>
-		{{ .PrevLink | unescapeHTML }}
-		<a href="./">All Playlists</a>
-		{{ .NextLink | unescapeHTML }}
-	</nav>
-	<table class="playlist">
-		<tbody class="playlist">
-			{{$playlist := .}}
-			{{range $index, $track := .Tracks}}
-			{{$previousRanking := $playlist.PreviousRanking $track}}
-			<tr class="playlist-entry" data-title="{{.Title}}">
-				<td class="position"><span>{{addOne $index}}</span></td>
-				<td class="rankinkDelta">
-				{{if gt $previousRanking -1}}
-					{{ rankingDelta $index $previousRanking }}</span>
-				{{ end }}
-				</td>
-				<td class="artwork">
-					<a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy" /></a>
-				</td>
-				<td class="track">
-					<a href="{{.YTMusicURL}}" target="_blank"><span class="title">{{.Title}}</span></a>
-				by <a href="{{.YTPrimaryArtistURL}}" target="_blank"><span class="artist-name">{{.Artist}}</span></a>
-				</td>
-				<td class="duration">
-					<span class="duration">{{.YTDuration}}</span>
-				</td>
-				<td class="dsp-links">
-					<a class="ytmusic" href="{{.YTMusicURL}}" target="_blank"><img src="images/youtube-music.svg"/></a>
-					<a class="spotify" href="{{.SpotifyURL}}" target="_blank"><img src="images/spotify.svg"/></a>
-				</td>
-				<td class="playcount" data-count={{.Count}}>
-				{{if gt .Count 20}}
-					<img src="images/flame-icon.svg" alt="{{.Count}} plays"/>
-				{{end}}
-				</td>
-			</tr>
-			{{end}}
-		</tbody>
-	</table>
-	<button id="random-button">Select a Random Song</button>
+    <h1>Radio Nova {{.Title}}</h1>
+    <nav>
+        {{ .PrevLink | unescapeHTML }}
+        <a href="./">All Playlists</a>
+        {{ .NextLink | unescapeHTML }}
+    </nav>
+
+    <table class="playlist">
+        <tbody class="playlist">
+            {{$playlist := .}}
+            {{range $index, $track := .Tracks}}
+            {{$previousRanking := $playlist.PreviousRanking $track}}
+            <tr class="playlist-entry" data-title="{{.Title}}">
+                <td class="position"><span>{{addOne $index}}</span></td>
+                <td class="rankinkDelta">
+                {{if gt $previousRanking -1}}
+                    {{ rankingDelta $index $previousRanking }}</span>
+                {{ end }}
+                </td>
+                <td class="artwork">
+                    <a href="{{.YTMusicURL}}" target="_blank"><img src="{{.ThumbURL}}" class="artwork" loading="lazy" /></a>
+                </td>
+                <td class="track">
+                    <a href="{{.YTMusicURL}}" target="_blank"><span class="title">{{.Title}}</span></a>
+                    by <a href="{{.YTPrimaryArtistURL}}" target="_blank"><span class="artist-name">{{.Artist}}</span></a>
+                </td>
+                <td class="duration">
+                    <span class="duration">{{.YTDuration}}</span>
+                </td>
+                <td class="dsp-links">
+                    <a class="ytmusic" href="{{.YTMusicURL}}" target="_blank"><img src="images/youtube-music.svg"/></a>
+                    <a class="spotify" href="{{.SpotifyURL}}" target="_blank"><img src="images/spotify.svg"/></a>
+                </td>
+                <td class="playcount" data-count={{.Count}}>
+                {{if gt .Count 20}}
+                    <img src="images/flame-icon.svg" alt="{{.Count}} plays"/>
+                {{end}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <!-- Nova Player Component -->
+    <div id="nova-player-root" class="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t"></div>
+
+    <!-- Initialize YouTube IFrame API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <!-- Add NovaPlayer Component -->
+    <script src="nova-player.js"></script>
 </body>
 </html>
 `

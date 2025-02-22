@@ -1,13 +1,12 @@
 module github.com/mattetti/nova-playlist
 
-go 1.23.0
-
-toolchain go1.24.0
+go 1.21
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.0
 	github.com/mattetti/goRailsYourself v1.0.0
 	github.com/raitonoberu/ytmusic v0.0.0-20220927155833-3d1de71caa11
+	golang.org/x/oauth2 v0.26.0
 )
 
 require (
@@ -27,7 +26,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.34.0 // indirect
 	golang.org/x/crypto v0.33.0 // indirect
-	golang.org/x/oauth2 v0.26.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250212204824-5a70512c5d8b // indirect
