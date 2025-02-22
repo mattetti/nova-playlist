@@ -393,18 +393,17 @@ async function initializePlayer() {
     return React.createElement(
       'div',
       {
-        className: 'fixed bottom-4 right-4 w-80 bg-gray-900 text-white shadow-lg rounded-lg border border-gray-800',
+        className: 'fixed bottom-4 right-4 w-80 bg-gray-900/95 text-white shadow-lg rounded-lg border border-gray-800',
         ref: playerRef,
         style: {
           zIndex: 50,
           backdropFilter: 'blur(10px)',
-          backgroundColor: 'rgba(17, 24, 39, 0.95)'
         }
       },
       // Error message if present
       playerState.error && React.createElement(
         'div',
-        { className: 'flex items-center gap-2 px-4 py-2 bg-red-900/50 text-red-200' },
+        { className: 'flex items-center gap-2 px-4 py-2 bg-red-900/50 text-red-200 rounded-t-lg' },
         createIcon('alert-circle', { size: 16 }),
         React.createElement('span', { className: 'text-sm' }, playerState.error)
       ),
@@ -421,7 +420,14 @@ async function initializePlayer() {
             createIcon('volume-2', { size: 18 }),
             React.createElement(
               'span',
-              { className: 'font-medium text-sm bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent' },
+              {
+                className: 'font-medium text-sm',
+                style: {
+                  background: 'linear-gradient(to right, #A78BFA, #DB2777)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent'
+                }
+              },
               'Nova Radio'
             )
           ),
@@ -429,17 +435,15 @@ async function initializePlayer() {
             'button',
             {
               onClick: togglePlayMode,
-              className: 'p-2 rounded-full hover:bg-gray-700 flex items-center gap-2 text-gray-300 hover:text-white transition-colors',
+              className: 'p-2 rounded-full hover:bg-gray-700/50 flex items-center gap-2 text-gray-300 hover:text-white transition-colors',
               title: queue.mode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
             },
-            [
-              createIcon(queue.mode === 'sequential' ? 'list-ordered' : 'shuffle', { size: 20 }),
-              React.createElement(
-                'span',
-                { className: 'text-sm' },
-                queue.mode === 'sequential' ? 'Sequential' : 'Random'
-              )
-            ]
+            createIcon(queue.mode === 'sequential' ? 'list-ordered' : 'shuffle', { size: 20 }),
+            React.createElement(
+              'span',
+              { className: 'text-sm' },
+              queue.mode === 'sequential' ? 'Sequential' : 'Random'
+            )
           )
         ),
         // Track info and controls
@@ -456,7 +460,7 @@ async function initializePlayer() {
             ),
             React.createElement(
               'p',
-              { className: 'text-sm text-gray-400 truncate' },
+              { className: 'text-xs text-gray-400 truncate' },
               playerState.currentTrack ? playerState.currentTrack.artist : 'Or use the play button for sequential playback'
             )
           ),
@@ -467,7 +471,7 @@ async function initializePlayer() {
               'button',
               {
                 onClick: togglePlayPause,
-                className: 'p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors',
+                className: 'p-2 rounded-full hover:bg-gray-700/50 text-gray-300 hover:text-white transition-colors',
                 title: playerState.isPlaying ? 'Pause' : 'Play'
               },
               createIcon(playerState.isPlaying ? 'pause' : 'play', { size: 24 })
@@ -476,7 +480,7 @@ async function initializePlayer() {
               'button',
               {
                 onClick: handleTrackEnd,
-                className: 'p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors',
+                className: 'p-2 rounded-full hover:bg-gray-700/50 text-gray-300 hover:text-white transition-colors',
                 title: queue.mode === 'sequential' ? 'Next Track' : 'Random Track'
               },
               createIcon('skip-forward', { size: 18 })
@@ -487,7 +491,7 @@ async function initializePlayer() {
           'div',
           {
             id: 'youtube-player',
-            className: 'w-full h-[120px] mt-2 bg-gray-800 rounded-lg overflow-hidden'
+            className: 'w-full h-[120px] mt-2 bg-gray-800/50 rounded-lg overflow-hidden'
           }
         )
       )
