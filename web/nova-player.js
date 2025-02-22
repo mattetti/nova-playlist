@@ -90,10 +90,10 @@ async function initializePlayer() {
       const style = document.createElement('style');
       style.textContent = `
         .playlist-entry.playing {
-          background-color: #f3f4f6;
+          background-color: rgba(139, 92, 246, 0.1);
         }
         .playlist-entry:hover {
-          background-color: #f9fafb;
+          background-color: rgba(139, 92, 246, 0.05);
         }
       `;
       document.head.appendChild(style);
@@ -135,7 +135,6 @@ async function initializePlayer() {
 
     const extractVideoId = (url) => {
       const match = url.match(/[?&]v=([^&]+)/);
-      console.log('Extracting video ID from URL:', url, 'Result:', match ? match[1] : null);
       return match ? match[1] : '';
     };
 
@@ -222,10 +221,10 @@ async function initializePlayer() {
     };
 
     // Create the component's elements using React.createElement
-    return React.createElement(
+    return       React.createElement(
       'div',
       {
-        className: 'w-full max-w-4xl mx-auto bg-white shadow-lg p-4',
+        className: 'w-full max-w-4xl mx-auto bg-gray-900 text-white shadow-lg rounded-t-lg p-4',
         ref: playerRef
       },
       React.createElement(
@@ -235,13 +234,13 @@ async function initializePlayer() {
           'div',
           { className: 'flex items-center gap-2' },
           createIcon('volume-2', { size: 24 }),
-          React.createElement('span', { className: 'font-bold' }, 'Nova Radio Player')
+          React.createElement('span', { className: 'font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent' }, 'Nova Radio Player')
         ),
         React.createElement(
           'button',
           {
             onClick: togglePlayMode,
-            className: 'p-2 rounded-full hover:bg-gray-100 flex items-center gap-2',
+            className: 'p-2 rounded-full hover:bg-gray-700 flex items-center gap-2 text-gray-300 hover:text-white transition-colors',
             title: playMode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
           },
           [
@@ -262,12 +261,12 @@ async function initializePlayer() {
           { className: 'space-y-1 flex-1 min-w-0' },
           React.createElement(
             'p',
-            { className: 'text-sm font-medium leading-none truncate' },
+            { className: 'text-sm font-medium leading-none truncate text-gray-100' },
             currentTrack ? currentTrack.title : 'Click any track to play'
           ),
           React.createElement(
             'p',
-            { className: 'text-sm text-gray-500 truncate' },
+            { className: 'text-sm text-gray-400 truncate' },
             currentTrack ? currentTrack.artist : 'Or use the play button for sequential playback'
           )
         ),
@@ -278,7 +277,7 @@ async function initializePlayer() {
             'button',
             {
               onClick: togglePlayPause,
-              className: 'p-2 rounded-full hover:bg-gray-100',
+              className: 'p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors',
               title: isPlaying ? 'Pause' : 'Play'
             },
             createIcon(isPlaying ? 'pause' : 'play', { size: 24 })
@@ -296,7 +295,7 @@ async function initializePlayer() {
       ),
       React.createElement('div', {
         id: 'youtube-player',
-        className: 'w-full max-w-[300px] h-[200px] mt-4'
+        className: 'w-full max-w-[300px] h-[200px] mt-4 bg-gray-800 rounded-lg overflow-hidden'
       })
     );
   };
