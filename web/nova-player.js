@@ -29,13 +29,18 @@ async function initializePlayer() {
     };
   }
 
-  // Create Lucide icon components
+  // Create Lucide icon elements
   function createIcon(name, props = {}) {
-    return window.lucide.createElement(name, {
-      size: props.size || 24,
-      color: props.color || 'currentColor',
-      strokeWidth: 2
+    const element = document.createElement('i');
+    element.dataset.lucide = name;
+    element.className = `lucide lucide-${name}`;
+    element.style.width = `${props.size || 24}px`;
+    element.style.height = `${props.size || 24}px`;
+    element.style.color = props.color || 'currentColor';
+    window.lucide.createIcons({
+      elements: [element]
     });
+    return element;
   }
 
   const NovaPlayer = () => {
@@ -309,7 +314,10 @@ async function initializePlayer() {
         {
           className: 'flex items-center gap-2 px-4 py-2 bg-red-900/50 text-red-200'
         },
-        createIcon('alert-circle', { size: 16 }),
+        React.createElement('span', {
+            className: 'text-red-200',
+            dangerouslySetInnerHTML: { __html: createIcon('alert-circle', { size: 16 }).outerHTML }
+          }),
         React.createElement(
           'span',
           { className: 'text-sm' },
@@ -331,7 +339,10 @@ async function initializePlayer() {
             React.createElement(
               'div',
               { className: 'flex items-center gap-2' },
-              createIcon('volume-2', { size: 18, color: '#A78BFA' }),
+              React.createElement('span', {
+                className: 'text-purple-400',
+                dangerouslySetInnerHTML: { __html: createIcon('volume-2', { size: 18 }).outerHTML }
+              }),
               React.createElement(
                 'span',
                 { className: 'font-medium text-sm bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent' },
@@ -364,7 +375,14 @@ async function initializePlayer() {
                 className: 'p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors',
                 title: queue.mode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
               },
-              createIcon(queue.mode === 'sequential' ? 'list-ordered' : 'shuffle', { size: 18 })
+              React.createElement('span', {
+                dangerouslySetInnerHTML: {
+                  __html: createIcon(
+                    queue.mode === 'sequential' ? 'list-ordered' : 'shuffle',
+                    { size: 18 }
+                  ).outerHTML
+                }
+              })
             ),
             React.createElement(
               'button',
@@ -374,7 +392,14 @@ async function initializePlayer() {
                 disabled: playerState.isLoading,
                 title: playerState.isPlaying ? 'Pause' : 'Play'
               },
-              createIcon(playerState.isPlaying ? 'pause' : 'play', { size: 24 })
+              React.createElement('span', {
+                dangerouslySetInnerHTML: {
+                  __html: createIcon(
+                    playerState.isPlaying ? 'pause' : 'play',
+                    { size: 24 }
+                  ).outerHTML
+                }
+              })
             ),
             React.createElement(
               'button',
@@ -383,7 +408,11 @@ async function initializePlayer() {
                 className: 'p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors',
                 title: 'Next track'
               },
-              createIcon('skip-forward', { size: 18 })
+              React.createElement('span', {
+                dangerouslySetInnerHTML: {
+                  __html: createIcon('skip-forward', { size: 18 }).outerHTML
+                }
+              })
             )
           )
         )
