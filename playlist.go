@@ -30,7 +30,7 @@ var HTMLTmpl = `
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 
     <!-- Import Lucide Icons from CDN -->
-    <script src="https://unpkg.com/@lucide/react@latest/dist/umd/lucide-react.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
 
     <!-- Error handling for script loading -->
     <script>

@@ -2,13 +2,13 @@
 function waitForLibraries() {
   return new Promise((resolve) => {
     function checkLibraries() {
-      if (window.React && window.ReactDOM && window.lucideReact) {
+      if (window.React && window.ReactDOM && window.lucide) {
         resolve();
       } else {
         console.log('Waiting for libraries...', {
           react: !!window.React,
           reactDOM: !!window.ReactDOM,
-          lucideReact: !!window.lucideReact
+          lucide: !!window.lucide
         });
         setTimeout(checkLibraries, 100);
       }
@@ -22,7 +22,14 @@ async function initializePlayer() {
   console.log('All libraries loaded, initializing player...');
 
   const { useState, useEffect } = React;
-  const { Volume2, ListOrdered, Shuffle, SkipForward, Play, Pause } = window.lucideReact;
+
+  // Create icon elements using lucide.createElement
+  const createIcon = (name, props = {}) => {
+    return window.lucide.createElement({
+      name,
+      ...props
+    });
+  };
 
   const NovaPlayer = () => {
     const [currentTrack, setCurrentTrack] = useState(null);
@@ -43,11 +50,6 @@ async function initializePlayer() {
       setTracks(loadedTracks);
 
       // Initialize YouTube IFrame API
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
       window.onYouTubeIframeAPIReady = () => {
         const newPlayer = new window.YT.Player('youtube-player', {
           height: '0',
@@ -135,7 +137,7 @@ async function initializePlayer() {
         React.createElement(
           'div',
           { className: 'flex items-center gap-2' },
-          React.createElement(Volume2, { className: 'h-6 w-6' }),
+          createIcon('volume-2', { class: 'h-6 w-6' }),
           React.createElement('span', { className: 'font-bold' }, 'Nova Radio Player')
         ),
         React.createElement(
@@ -146,10 +148,10 @@ async function initializePlayer() {
             title: playMode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
           },
           playMode === 'sequential' ? [
-            React.createElement(ListOrdered, { key: 'icon', className: 'h-5 w-5' }),
+            createIcon('list-ordered', { class: 'h-5 w-5' }),
             React.createElement('span', { key: 'text', className: 'text-sm' }, 'Sequential')
           ] : [
-            React.createElement(Shuffle, { key: 'icon', className: 'h-5 w-5' }),
+            createIcon('shuffle', { class: 'h-5 w-5' }),
             React.createElement('span', { key: 'text', className: 'text-sm' }, 'Random')
           ]
         )
@@ -182,7 +184,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: isPlaying ? 'Pause' : 'Play'
             },
-            React.createElement(isPlaying ? Pause : Play, { className: 'h-6 w-6' })
+            createIcon(isPlaying ? 'pause' : 'play', { class: 'h-6 w-6' })
           ),
           React.createElement(
             'button',
@@ -191,7 +193,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: playMode === 'sequential' ? 'Next Track' : 'Random Track'
             },
-            React.createElement(SkipForward, { className: 'h-6 w-6' })
+            createIcon('skip-forward', { class: 'h-6 w-6' })
           )
         )
       ),
