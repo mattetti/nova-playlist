@@ -13,7 +13,14 @@ function waitForLibraries() {
 }
 
 async function initializePlayer() {
+  console.log('Starting player initialization...');
   await waitForLibraries();
+  console.log('Libraries loaded:', {
+    react: !!window.React,
+    reactDOM: !!window.ReactDOM,
+    lucide: !!window.lucide,
+    yt: !!window.YT
+  });
 
   const { useState, useEffect, useRef } = React;
 
@@ -111,7 +118,8 @@ async function initializePlayer() {
         videoId: '',
         playerVars: {
           playsinline: 1,
-          controls: 0
+          controls: 0,
+          origin: window.location.origin // Add origin for postMessage
         },
         events: {
           onStateChange: onPlayerStateChange,
