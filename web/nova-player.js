@@ -323,7 +323,7 @@ async function initializePlayer() {
         id: 'youtube-player',
         className: 'w-full h-[120px] mt-2 bg-gray-800 rounded-lg overflow-hidden'
       })
-    );
+    ));
   };
 
   // Initialize the player
