@@ -19,25 +19,23 @@ async function initializePlayer() {
 
   // Create Lucide icon components
   const createIcon = (iconName, props = {}) => {
-    // Get the icon path data from lucide's icons object
-    const iconData = window.lucide.icons[iconName];
-    if (!iconData) {
-      console.error(`Icon ${iconName} not found`);
-      return null;
-    }
+    // Convert iconName to kebab case as required by Lucide
+    const kebabName = iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 
-    // Create React element for SVG
-    return React.createElement('svg', {
-      xmlns: 'http://www.w3.org/2000/svg',
-      width: props.size || 24,
-      height: props.size || 24,
-      viewBox: '0 0 24 24',
-      fill: 'none',
-      stroke: 'currentColor',
-      strokeWidth: 2,
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round',
-      dangerouslySetInnerHTML: { __html: iconData }
+    // Create the icon element using Lucide's global function
+    const element = window.lucide.createIcons({
+      icons: {
+        [kebabName]: {
+          width: props.size || 24,
+          height: props.size || 24,
+        }
+      }
+    });
+
+    // Return a React element that wraps the icon
+    return React.createElement('i', {
+      className: `lucide lucide-${kebabName}`,
+      style: { display: 'inline-block', width: props.size || 24, height: props.size || 24 }
     });
   };
 
