@@ -73,13 +73,25 @@ async function initializePlayer() {
     useEffect(() => {
       // Load tracks from playlist table
       const trackElements = document.querySelectorAll('.playlist-entry');
-      const loadedTracks = Array.from(trackElements).map(track => ({
-        id: track.dataset.title,
-        title: track.querySelector('.title').textContent,
-        artist: track.querySelector('.artist-name').textContent,
-        ytMusicUrl: track.querySelector('a[href*="music.youtube.com"]').href,
-        videoId: extractVideoId(track.querySelector('a[href*="music.youtube.com"]').href)
-      }));
+      const loadedTracks = Array.from(trackElements).map(track => {
+        // Find YouTube Music link - look in both general track link and specific ytmusic link
+        const ytMusicLink = track.querySelector('a[href*="music.youtube.com"]') ||
+                           track.querySelector('.ytmusic[href*="music.youtube.com"]');
+
+        // Only include tracks that have a valid YouTube Music link
+        if (!ytMusicLink?.href) {
+          console.warn('Skipping track without YouTube Music link:', track.querySelector('.title')?.textContent);
+          return null;
+        }
+
+        return {
+          id: track.dataset.title || ytMusicLink.href,
+          title: track.querySelector('.title')?.textContent || 'Unknown Title',
+          artist: track.querySelector('.artist-name')?.textContent || 'Unknown Artist',
+          ytMusicUrl: ytMusicLink.href,
+          videoId: extractVideoId(ytMusicLink.href)
+        };
+      }).filter(track => track !== null);
 
       console.log('Loaded tracks:', loadedTracks.length);
       tracksRef.current = loadedTracks;
