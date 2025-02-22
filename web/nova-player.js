@@ -113,22 +113,23 @@ async function initializePlayer() {
 
     const initializeYouTubePlayer = () => {
       youtubePlayerRef.current = new window.YT.Player('youtube-player', {
-        height: '200',
-        width: '300',
+        height: '120',
+        width: '200',
         videoId: '',
         playerVars: {
           playsinline: 1,
           controls: 1,
           origin: window.location.origin,
-          enablejsapi: 1
+          enablejsapi: 1,
+          autoplay: 1
         },
         events: {
           onReady: (event) => {
             console.log('YouTube player ready');
-            youtubePlayerRef.current = event.target; // Store the actual player instance
+            youtubePlayerRef.current = event.target;
           },
           onStateChange: onPlayerStateChange,
-          onError: (e) => console.error('YouTube player error:', e)
+          onError: (e) => console.error('YouTube player error:', e.data)
         }
       });
     };
@@ -199,7 +200,11 @@ async function initializePlayer() {
     };
 
     const playNextTrack = () => {
-      if (!tracks.length) return;
+      console.log('playNextTrack called');
+      if (!tracks.length) {
+        console.log('No tracks available');
+        return;
+      }
 
       let nextIndex;
       if (playMode === 'random') {
@@ -207,15 +212,22 @@ async function initializePlayer() {
       } else {
         nextIndex = (currentIndex + 1) % tracks.length;
       }
+
+      console.log('Playing next track at index:', nextIndex);
       playTrack(tracks[nextIndex], nextIndex);
     };
 
     const onPlayerStateChange = (event) => {
+      console.log('Player state changed:', event.data);
+
       if (event.data === window.YT.PlayerState.ENDED) {
+        console.log('Track ended, playing next...');
         playNextTrack();
       } else if (event.data === window.YT.PlayerState.PAUSED) {
+        console.log('Track paused');
         setIsPlaying(false);
       } else if (event.data === window.YT.PlayerState.PLAYING) {
+        console.log('Track playing');
         setIsPlaying(true);
       }
     };
@@ -224,17 +236,25 @@ async function initializePlayer() {
     return       React.createElement(
       'div',
       {
-        className: 'w-full max-w-4xl mx-auto bg-gray-900 text-white shadow-lg rounded-t-lg p-4',
-        ref: playerRef
+        className: 'fixed bottom-4 right-4 w-80 bg-gray-900 text-white shadow-lg rounded-lg border border-gray-800',
+        ref: playerRef,
+        style: {
+          zIndex: 50,
+          backdropFilter: 'blur(10px)',
+          backgroundColor: 'rgba(17, 24, 39, 0.95)'
+        }
       },
       React.createElement(
         'div',
-        { className: 'flex items-center justify-between mb-4' },
+        { className: 'p-3' },
+        React.createElement(
+          'div',
+          { className: 'flex items-center justify-between mb-2' },
         React.createElement(
           'div',
           { className: 'flex items-center gap-2' },
-          createIcon('volume-2', { size: 24 }),
-          React.createElement('span', { className: 'font-bold bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent' }, 'Nova Radio Player')
+          createIcon('volume-2', { size: 18 }),
+          React.createElement('span', { className: 'font-medium text-sm bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent' }, 'Radio Nova')
         ),
         React.createElement(
           'button',
@@ -289,13 +309,13 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: playMode === 'sequential' ? 'Next Track' : 'Random Track'
             },
-            createIcon('skip-forward', { size: 24 })
+            createIcon('skip-forward', { size: 18 })
           )
         )
       ),
       React.createElement('div', {
         id: 'youtube-player',
-        className: 'w-full max-w-[300px] h-[200px] mt-4 bg-gray-800 rounded-lg overflow-hidden'
+        className: 'w-full h-[120px] mt-2 bg-gray-800 rounded-lg overflow-hidden'
       })
     );
   };
