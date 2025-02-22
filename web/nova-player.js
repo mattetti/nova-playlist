@@ -20,18 +20,23 @@ function waitForLibraries() {
 async function initializePlayer() {
   await waitForLibraries();
   console.log('All libraries loaded, initializing player...');
+  console.log('Available Lucide methods:', Object.keys(window.lucide));
 
   const { useState, useEffect } = React;
 
   // Create icon elements using lucide
   const createIcon = (name, props = {}) => {
-    const element = document.createElement('div');
-    const icon = window.lucide[name]({
-      color: 'currentColor',
-      ...props
+    const element = document.createElement('i');
+    element.setAttribute('data-lucide', name);
+    element.setAttribute('width', props.width || '24');
+    element.setAttribute('height', props.height || '24');
+    window.lucide.createIcons({
+      attrs: {
+        stroke: 'currentColor',
+        ...props
+      }
     });
-    element.innerHTML = icon;
-    return element.firstChild;
+    return element;
   };
 
   const NovaPlayer = () => {
@@ -131,6 +136,11 @@ async function initializePlayer() {
       }
     };
 
+    useEffect(() => {
+      // Update icons after render
+      window.lucide.createIcons();
+    });
+
     return React.createElement(
       'div',
       { className: 'w-full max-w-4xl mx-auto bg-white border-t shadow-lg p-4' },
@@ -140,7 +150,10 @@ async function initializePlayer() {
         React.createElement(
           'div',
           { className: 'flex items-center gap-2' },
-          createIcon('Volume2', { width: 24, height: 24 }),
+          React.createElement('i', {
+            'data-lucide': 'volume-2',
+            className: 'h-6 w-6'
+          }),
           React.createElement('span', { className: 'font-bold' }, 'Nova Radio Player')
         ),
         React.createElement(
@@ -150,12 +163,16 @@ async function initializePlayer() {
             className: 'p-2 rounded-full hover:bg-gray-100 flex items-center gap-2',
             title: playMode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
           },
-          playMode === 'sequential' ? [
-            createIcon('ListOrdered', { width: 20, height: 20 }),
-            React.createElement('span', { key: 'text', className: 'text-sm' }, 'Sequential')
-          ] : [
-            createIcon('Shuffle', { width: 20, height: 20 }),
-            React.createElement('span', { key: 'text', className: 'text-sm' }, 'Random')
+          [
+            React.createElement('i', {
+              key: 'icon',
+              'data-lucide': playMode === 'sequential' ? 'list-ordered' : 'shuffle',
+              className: 'h-5 w-5'
+            }),
+            React.createElement('span', {
+              key: 'text',
+              className: 'text-sm'
+            }, playMode === 'sequential' ? 'Sequential' : 'Random')
           ]
         )
       ),
@@ -187,7 +204,10 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: isPlaying ? 'Pause' : 'Play'
             },
-            createIcon(isPlaying ? 'Pause' : 'Play', { width: 24, height: 24 })
+            React.createElement('i', {
+              'data-lucide': isPlaying ? 'pause' : 'play',
+              className: 'h-6 w-6'
+            })
           ),
           React.createElement(
             'button',
@@ -196,7 +216,10 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: playMode === 'sequential' ? 'Next Track' : 'Random Track'
             },
-            createIcon('SkipForward', { width: 24, height: 24 })
+            React.createElement('i', {
+              'data-lucide': 'skip-forward',
+              className: 'h-6 w-6'
+            })
           )
         )
       ),
