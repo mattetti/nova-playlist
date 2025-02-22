@@ -23,12 +23,15 @@ async function initializePlayer() {
 
   const { useState, useEffect } = React;
 
-  // Create icon elements using lucide.createElement
+  // Create icon elements using lucide
   const createIcon = (name, props = {}) => {
-    return window.lucide.createElement({
-      name,
+    const element = document.createElement('div');
+    const icon = window.lucide[name]({
+      color: 'currentColor',
       ...props
     });
+    element.innerHTML = icon;
+    return element.firstChild;
   };
 
   const NovaPlayer = () => {
@@ -137,7 +140,7 @@ async function initializePlayer() {
         React.createElement(
           'div',
           { className: 'flex items-center gap-2' },
-          createIcon('volume-2', { class: 'h-6 w-6' }),
+          createIcon('Volume2', { width: 24, height: 24 }),
           React.createElement('span', { className: 'font-bold' }, 'Nova Radio Player')
         ),
         React.createElement(
@@ -148,10 +151,10 @@ async function initializePlayer() {
             title: playMode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
           },
           playMode === 'sequential' ? [
-            createIcon('list-ordered', { class: 'h-5 w-5' }),
+            createIcon('ListOrdered', { width: 20, height: 20 }),
             React.createElement('span', { key: 'text', className: 'text-sm' }, 'Sequential')
           ] : [
-            createIcon('shuffle', { class: 'h-5 w-5' }),
+            createIcon('Shuffle', { width: 20, height: 20 }),
             React.createElement('span', { key: 'text', className: 'text-sm' }, 'Random')
           ]
         )
@@ -184,7 +187,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: isPlaying ? 'Pause' : 'Play'
             },
-            createIcon(isPlaying ? 'pause' : 'play', { class: 'h-6 w-6' })
+            createIcon(isPlaying ? 'Pause' : 'Play', { width: 24, height: 24 })
           ),
           React.createElement(
             'button',
@@ -193,7 +196,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: playMode === 'sequential' ? 'Next Track' : 'Random Track'
             },
-            createIcon('skip-forward', { class: 'h-6 w-6' })
+            createIcon('SkipForward', { width: 24, height: 24 })
           )
         )
       ),
