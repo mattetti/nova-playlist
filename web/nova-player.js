@@ -88,6 +88,8 @@ async function initializePlayer() {
       const handleTrackClick = (index, e) => {
         if (e.target.tagName === 'A') return;
         e.preventDefault();
+        console.log('Manual track selection at index:', index);
+        setCurrentIndex(index); // Update current index immediately
         playTrack(loadedTracks[index], index);
       };
 
@@ -164,8 +166,9 @@ async function initializePlayer() {
         return;
       }
 
+      console.log('Playing track at index:', index);
       setCurrentTrack(track);
-      setCurrentIndex(index);
+      setCurrentIndex(index); // Ensure currentIndex is always in sync
       setIsPlaying(true);
 
       try {
@@ -200,11 +203,18 @@ async function initializePlayer() {
         youtubePlayerRef.current.pauseVideo();
         setIsPlaying(false);
       } else {
-        if (!currentTrack && tracks.length > 0) {
-          playTrack(tracks[0], 0);
+        if (!currentTrack) {
+          if (tracksRef.current.length > 0) {
+            playTrack(tracksRef.current[0], 0);
+          }
         } else {
-          youtubePlayerRef.current.playVideo();
-          setIsPlaying(true);
+          if (youtubePlayerRef.current.getPlayerState() === window.YT.PlayerState.ENDED) {
+            // If current track ended, play next instead of replaying current
+            playNextTrack();
+          } else {
+            youtubePlayerRef.current.playVideo();
+            setIsPlaying(true);
+          }
         }
       }
     };
@@ -224,8 +234,9 @@ async function initializePlayer() {
           nextIndex = Math.floor(Math.random() * availableTracks.length);
         } while (nextIndex === currentIndex && availableTracks.length > 1);
       } else {
-        // Ensure we move to the next track
+        // Use the current index as the base for finding the next track
         nextIndex = (currentIndex + 1) % availableTracks.length;
+        console.log('Sequential mode - current:', currentIndex, 'next:', nextIndex);
       }
 
       console.log('Playing next track at index:', nextIndex, 'out of', availableTracks.length, 'tracks');
