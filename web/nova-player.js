@@ -5,11 +5,6 @@ function waitForLibraries() {
       if (window.React && window.ReactDOM && window.lucide) {
         resolve();
       } else {
-        console.log('Waiting for libraries...', {
-          react: !!window.React,
-          reactDOM: !!window.ReactDOM,
-          lucide: !!window.lucide
-        });
         setTimeout(checkLibraries, 100);
       }
     }
@@ -19,30 +14,31 @@ function waitForLibraries() {
 
 async function initializePlayer() {
   await waitForLibraries();
-  console.log('All libraries loaded, initializing player...');
 
-  const { useState, useEffect } = React;
+  const { useState, useEffect, useRef } = React;
 
-  // Helper function to create DOM elements from HTML strings
-  const createElementFromHTML = (htmlString) => {
-    const div = document.createElement('div');
-    div.innerHTML = htmlString.trim();
-    return div.firstChild;
-  };
+  // Create Lucide icon components
+  const createIcon = (iconName, props = {}) => {
+    // Get the icon path data from lucide's icons object
+    const iconData = window.lucide.icons[iconName];
+    if (!iconData) {
+      console.error(`Icon ${iconName} not found`);
+      return null;
+    }
 
-  // Create icon elements using lucide
-  const createIcon = (name, props = {}) => {
-    // Convert PascalCase to kebab-case for icon names
-    const iconName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-
-    // Create a temporary element to hold the icon SVG
-    const element = document.createElement('div');
-    element.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${props.width || 24}" height="${props.height || 24}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      ${window.lucide.icons[iconName]}
-    </svg>`;
-
-    // Return the SVG element
-    return element.firstChild;
+    // Create React element for SVG
+    return React.createElement('svg', {
+      xmlns: 'http://www.w3.org/2000/svg',
+      width: props.size || 24,
+      height: props.size || 24,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeWidth: 2,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round',
+      dangerouslySetInnerHTML: { __html: iconData }
+    });
   };
 
   const NovaPlayer = () => {
@@ -51,7 +47,9 @@ async function initializePlayer() {
     const [playMode, setPlayMode] = useState('sequential');
     const [currentIndex, setCurrentIndex] = useState(0);
     const [tracks, setTracks] = useState([]);
-    const [player, setPlayer] = useState(null);
+
+    const playerRef = useRef(null);
+    const youtubePlayerRef = useRef(null);
 
     useEffect(() => {
       // Load tracks from playlist table
@@ -59,38 +57,29 @@ async function initializePlayer() {
       const loadedTracks = Array.from(trackElements).map(track => ({
         title: track.querySelector('.title').textContent,
         artist: track.querySelector('.artist-name').textContent,
-        ytMusicUrl: track.querySelector('a[href*="music.youtube.com"]').href
+        ytMusicUrl: track.querySelector('a[href*="music.youtube.com"]').href,
+        videoId: extractVideoId(track.querySelector('a[href*="music.youtube.com"]').href)
       }));
       setTracks(loadedTracks);
 
-      // Add click handlers to playlist entries
-      trackElements.forEach((trackElement, index) => {
-        trackElement.style.cursor = 'pointer';
-        trackElement.addEventListener('click', (e) => {
-          // Don't trigger if clicking on a link
-          if (e.target.tagName === 'A') return;
-          e.preventDefault();
-          playTrack(loadedTracks[index], index);
-        });
-      });
-
       // Initialize YouTube IFrame API
-      window.onYouTubeIframeAPIReady = () => {
-        const newPlayer = new window.YT.Player('youtube-player', {
-          height: '0',
-          width: '0',
-          videoId: '',
-          playerVars: {
-            playsinline: 1,
-            controls: 0
-          },
-          events: {
-            onStateChange: onPlayerStateChange,
-            onError: (e) => console.error('YouTube player error:', e)
-          }
-        });
-        setPlayer(newPlayer);
+      if (window.YT) {
+        initializeYouTubePlayer();
+      } else {
+        window.onYouTubeIframeAPIReady = initializeYouTubePlayer;
+      }
+
+      // Add click handlers to playlist entries
+      const handleTrackClick = (index, e) => {
+        if (e.target.tagName === 'A') return;
+        e.preventDefault();
+        playTrack(loadedTracks[index], index);
       };
+
+      trackElements.forEach((el, index) => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', (e) => handleTrackClick(index, e));
+      });
 
       // Add styles for active track
       const style = document.createElement('style');
@@ -106,63 +95,74 @@ async function initializePlayer() {
 
       // Cleanup
       return () => {
-        document.head.removeChild(style);
-        trackElements.forEach(el => {
+        trackElements.forEach((el, index) => {
           el.style.cursor = '';
-          el.removeEventListener('click');
+          el.removeEventListener('click', (e) => handleTrackClick(index, e));
         });
+        document.head.removeChild(style);
+        if (youtubePlayerRef.current) {
+          youtubePlayerRef.current.destroy();
+        }
       };
     }, []);
 
-    useEffect(() => {
-      // Update playing state in UI
-      document.querySelectorAll('.playlist-entry').forEach((el, index) => {
-        if (index === currentIndex && isPlaying) {
-          el.classList.add('playing');
-        } else {
-          el.classList.remove('playing');
+    const initializeYouTubePlayer = () => {
+      youtubePlayerRef.current = new window.YT.Player('youtube-player', {
+        height: '0',
+        width: '0',
+        videoId: '',
+        playerVars: {
+          playsinline: 1,
+          controls: 0
+        },
+        events: {
+          onStateChange: onPlayerStateChange,
+          onError: (e) => console.error('YouTube player error:', e)
         }
       });
-    }, [currentIndex, isPlaying]);
+    };
 
-    const getVideoId = (url) => {
+    const extractVideoId = (url) => {
       const match = url.match(/[?&]v=([^&]+)/);
       return match ? match[1] : '';
     };
 
     const playTrack = (track, index) => {
-      if (!player || !track) return;
-
-      const videoId = getVideoId(track.ytMusicUrl);
-      if (!videoId) {
-        console.error('Invalid video ID for track:', track);
-        return;
-      }
+      if (!youtubePlayerRef.current || !track?.videoId) return;
 
       setCurrentTrack(track);
       setCurrentIndex(index);
       setIsPlaying(true);
 
-      if (player.loadVideoById) {
-        player.loadVideoById(videoId);
-      }
+      youtubePlayerRef.current.loadVideoById(track.videoId);
+      updatePlaylistHighlight(index);
+    };
+
+    const updatePlaylistHighlight = (index) => {
+      document.querySelectorAll('.playlist-entry').forEach((el, i) => {
+        if (i === index) {
+          el.classList.add('playing');
+        } else {
+          el.classList.remove('playing');
+        }
+      });
     };
 
     const togglePlayMode = () => {
-      setPlayMode(prevMode => prevMode === 'sequential' ? 'random' : 'sequential');
+      setPlayMode(prev => prev === 'sequential' ? 'random' : 'sequential');
     };
 
     const togglePlayPause = () => {
-      if (!player) return;
+      if (!youtubePlayerRef.current) return;
 
       if (isPlaying) {
-        player.pauseVideo();
+        youtubePlayerRef.current.pauseVideo();
         setIsPlaying(false);
       } else {
         if (!currentTrack && tracks.length > 0) {
           playTrack(tracks[0], 0);
         } else {
-          player.playVideo();
+          youtubePlayerRef.current.playVideo();
           setIsPlaying(true);
         }
       }
@@ -190,16 +190,20 @@ async function initializePlayer() {
       }
     };
 
+    // Create the component's elements using React.createElement
     return React.createElement(
       'div',
-      { className: 'w-full max-w-4xl mx-auto bg-white border-t shadow-lg p-4' },
+      {
+        className: 'w-full max-w-4xl mx-auto bg-white shadow-lg p-4',
+        ref: playerRef
+      },
       React.createElement(
         'div',
         { className: 'flex items-center justify-between mb-4' },
         React.createElement(
           'div',
           { className: 'flex items-center gap-2' },
-          createIcon('volume-2', { width: 24, height: 24 }),
+          createIcon('volume-2', { size: 24 }),
           React.createElement('span', { className: 'font-bold' }, 'Nova Radio Player')
         ),
         React.createElement(
@@ -210,14 +214,15 @@ async function initializePlayer() {
             title: playMode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
           },
           [
-            createIcon(playMode === 'sequential' ? 'list-ordered' : 'shuffle', { width: 20, height: 20 }),
-            React.createElement('span', { key: 'text', className: 'text-sm' },
+            createIcon(playMode === 'sequential' ? 'list-ordered' : 'shuffle', { size: 20 }),
+            React.createElement(
+              'span',
+              { className: 'text-sm' },
               playMode === 'sequential' ? 'Sequential' : 'Random'
             )
           ]
         )
       ),
-
       React.createElement(
         'div',
         { className: 'flex items-center justify-between' },
@@ -245,7 +250,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: isPlaying ? 'Pause' : 'Play'
             },
-            createIcon(isPlaying ? 'pause' : 'play', { width: 24, height: 24 })
+            createIcon(isPlaying ? 'pause' : 'play', { size: 24 })
           ),
           React.createElement(
             'button',
@@ -254,7 +259,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: playMode === 'sequential' ? 'Next Track' : 'Random Track'
             },
-            createIcon('skip-forward', { width: 24, height: 24 })
+            createIcon('skip-forward', { size: 24 })
           )
         )
       ),
