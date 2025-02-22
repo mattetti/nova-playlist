@@ -55,6 +55,7 @@ async function initializePlayer() {
 
     const playerRef = useRef(null);
     const youtubePlayerRef = useRef(null);
+    const tracksRef = useRef([]); // Keep a ref to tracks for event handlers
 
     useEffect(() => {
       // Load tracks from playlist table
@@ -65,7 +66,10 @@ async function initializePlayer() {
         ytMusicUrl: track.querySelector('a[href*="music.youtube.com"]').href,
         videoId: extractVideoId(track.querySelector('a[href*="music.youtube.com"]').href)
       }));
+
+      console.log('Loaded tracks:', loadedTracks.length);
       setTracks(loadedTracks);
+      tracksRef.current = loadedTracks; // Store in ref for event handlers
 
       // Initialize YouTube IFrame API
       if (window.YT) {
@@ -201,20 +205,22 @@ async function initializePlayer() {
 
     const playNextTrack = () => {
       console.log('playNextTrack called');
-      if (!tracks.length) {
+      const availableTracks = tracksRef.current;
+
+      if (!availableTracks.length) {
         console.log('No tracks available');
         return;
       }
 
       let nextIndex;
       if (playMode === 'random') {
-        nextIndex = Math.floor(Math.random() * tracks.length);
+        nextIndex = Math.floor(Math.random() * availableTracks.length);
       } else {
-        nextIndex = (currentIndex + 1) % tracks.length;
+        nextIndex = (currentIndex + 1) % availableTracks.length;
       }
 
-      console.log('Playing next track at index:', nextIndex);
-      playTrack(tracks[nextIndex], nextIndex);
+      console.log('Playing next track at index:', nextIndex, 'out of', availableTracks.length, 'tracks');
+      playTrack(availableTracks[nextIndex], nextIndex);
     };
 
     const onPlayerStateChange = (event) => {
@@ -254,7 +260,7 @@ async function initializePlayer() {
           'div',
           { className: 'flex items-center gap-2' },
           createIcon('volume-2', { size: 18 }),
-          React.createElement('span', { className: 'font-medium text-sm bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent' }, 'Radio Nova')
+          React.createElement('span', { className: 'font-medium text-sm bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent' }, 'Nova Radio')
         ),
         React.createElement(
           'button',
@@ -317,7 +323,7 @@ async function initializePlayer() {
         id: 'youtube-player',
         className: 'w-full h-[120px] mt-2 bg-gray-800 rounded-lg overflow-hidden'
       })
-    ));
+    );
   };
 
   // Initialize the player
