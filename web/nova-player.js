@@ -20,23 +20,17 @@ function waitForLibraries() {
 async function initializePlayer() {
   await waitForLibraries();
   console.log('All libraries loaded, initializing player...');
-  console.log('Available Lucide methods:', Object.keys(window.lucide));
 
   const { useState, useEffect } = React;
 
   // Create icon elements using lucide
   const createIcon = (name, props = {}) => {
-    const element = document.createElement('i');
-    element.setAttribute('data-lucide', name);
-    element.setAttribute('width', props.width || '24');
-    element.setAttribute('height', props.height || '24');
-    window.lucide.createIcons({
-      attrs: {
-        stroke: 'currentColor',
-        ...props
-      }
+    const element = document.createElement('div');
+    element.innerHTML = window.lucide.createElement({
+      name: name.toLowerCase().replace(/([a-z])([A-Z])/g, '$1-$2'),
+      ...props
     });
-    return element;
+    return element.children[0];
   };
 
   const NovaPlayer = () => {
@@ -57,6 +51,17 @@ async function initializePlayer() {
       }));
       setTracks(loadedTracks);
 
+      // Add click handlers to playlist entries
+      trackElements.forEach((trackElement, index) => {
+        trackElement.style.cursor = 'pointer';
+        trackElement.addEventListener('click', (e) => {
+          // Don't trigger if clicking on a link
+          if (e.target.tagName === 'A') return;
+          e.preventDefault();
+          playTrack(loadedTracks[index], index);
+        });
+      });
+
       // Initialize YouTube IFrame API
       window.onYouTubeIframeAPIReady = () => {
         const newPlayer = new window.YT.Player('youtube-player', {
@@ -74,7 +79,39 @@ async function initializePlayer() {
         });
         setPlayer(newPlayer);
       };
+
+      // Add styles for active track
+      const style = document.createElement('style');
+      style.textContent = `
+        .playlist-entry.playing {
+          background-color: #f3f4f6;
+        }
+        .playlist-entry:hover {
+          background-color: #f9fafb;
+        }
+      `;
+      document.head.appendChild(style);
+
+      // Cleanup
+      return () => {
+        document.head.removeChild(style);
+        trackElements.forEach(el => {
+          el.style.cursor = '';
+          el.removeEventListener('click');
+        });
+      };
     }, []);
+
+    useEffect(() => {
+      // Update playing state in UI
+      document.querySelectorAll('.playlist-entry').forEach((el, index) => {
+        if (index === currentIndex && isPlaying) {
+          el.classList.add('playing');
+        } else {
+          el.classList.remove('playing');
+        }
+      });
+    }, [currentIndex, isPlaying]);
 
     const getVideoId = (url) => {
       const match = url.match(/[?&]v=([^&]+)/);
@@ -108,14 +145,15 @@ async function initializePlayer() {
 
       if (isPlaying) {
         player.pauseVideo();
+        setIsPlaying(false);
       } else {
         if (!currentTrack && tracks.length > 0) {
           playTrack(tracks[0], 0);
         } else {
           player.playVideo();
+          setIsPlaying(true);
         }
       }
-      setIsPlaying(!isPlaying);
     };
 
     const playNextTrack = () => {
@@ -131,15 +169,15 @@ async function initializePlayer() {
     };
 
     const onPlayerStateChange = (event) => {
+      // Update playing state based on YouTube player state
       if (event.data === window.YT.PlayerState.ENDED) {
         playNextTrack();
+      } else if (event.data === window.YT.PlayerState.PAUSED) {
+        setIsPlaying(false);
+      } else if (event.data === window.YT.PlayerState.PLAYING) {
+        setIsPlaying(true);
       }
     };
-
-    useEffect(() => {
-      // Update icons after render
-      window.lucide.createIcons();
-    });
 
     return React.createElement(
       'div',
@@ -150,10 +188,7 @@ async function initializePlayer() {
         React.createElement(
           'div',
           { className: 'flex items-center gap-2' },
-          React.createElement('i', {
-            'data-lucide': 'volume-2',
-            className: 'h-6 w-6'
-          }),
+          createIcon('Volume2', { width: 24, height: 24 }),
           React.createElement('span', { className: 'font-bold' }, 'Nova Radio Player')
         ),
         React.createElement(
@@ -164,15 +199,10 @@ async function initializePlayer() {
             title: playMode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
           },
           [
-            React.createElement('i', {
-              key: 'icon',
-              'data-lucide': playMode === 'sequential' ? 'list-ordered' : 'shuffle',
-              className: 'h-5 w-5'
-            }),
-            React.createElement('span', {
-              key: 'text',
-              className: 'text-sm'
-            }, playMode === 'sequential' ? 'Sequential' : 'Random')
+            createIcon(playMode === 'sequential' ? 'ListOrdered' : 'Shuffle', { width: 20, height: 20 }),
+            React.createElement('span', { key: 'text', className: 'text-sm' },
+              playMode === 'sequential' ? 'Sequential' : 'Random'
+            )
           ]
         )
       ),
@@ -186,12 +216,12 @@ async function initializePlayer() {
           React.createElement(
             'p',
             { className: 'text-sm font-medium leading-none truncate' },
-            currentTrack ? currentTrack.title : 'No track selected'
+            currentTrack ? currentTrack.title : 'Click any track to play'
           ),
           React.createElement(
             'p',
             { className: 'text-sm text-gray-500 truncate' },
-            currentTrack ? currentTrack.artist : 'Click play to start'
+            currentTrack ? currentTrack.artist : 'Or use the play button for sequential playback'
           )
         ),
         React.createElement(
@@ -204,10 +234,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: isPlaying ? 'Pause' : 'Play'
             },
-            React.createElement('i', {
-              'data-lucide': isPlaying ? 'pause' : 'play',
-              className: 'h-6 w-6'
-            })
+            createIcon(isPlaying ? 'Pause' : 'Play', { width: 24, height: 24 })
           ),
           React.createElement(
             'button',
@@ -216,10 +243,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: playMode === 'sequential' ? 'Next Track' : 'Random Track'
             },
-            React.createElement('i', {
-              'data-lucide': 'skip-forward',
-              className: 'h-6 w-6'
-            })
+            createIcon('SkipForward', { width: 24, height: 24 })
           )
         )
       ),
