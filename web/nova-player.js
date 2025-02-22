@@ -1,4 +1,3 @@
-// Wait for required libraries to load
 function waitForLibraries() {
   return new Promise((resolve) => {
     function checkLibraries() {
@@ -26,10 +25,7 @@ async function initializePlayer() {
 
   // Create Lucide icon components
   const createIcon = (iconName, props = {}) => {
-    // Convert iconName to kebab case as required by Lucide
     const kebabName = iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-
-    // Create the icon element using Lucide's global function
     const element = window.lucide.createIcons({
       icons: {
         [kebabName]: {
@@ -38,8 +34,6 @@ async function initializePlayer() {
         }
       }
     });
-
-    // Return a React element that wraps the icon
     return React.createElement('i', {
       className: `lucide lucide-${kebabName}`,
       style: { display: 'inline-block', width: props.size || 24, height: props.size || 24 }
@@ -396,7 +390,7 @@ async function initializePlayer() {
         className: 'fixed bottom-4 right-4 w-80 bg-gray-900/95 text-white shadow-lg rounded-lg border border-gray-800',
         ref: playerRef,
         style: {
-          zIndex: 50,
+          zIndex: 9999,
           backdropFilter: 'blur(10px)',
         }
       },
