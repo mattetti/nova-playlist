@@ -422,7 +422,7 @@ async function initializePlayer() {
                   WebkitTextFillColor: 'transparent'
                 }
               },
-              'Nova Radio'
+              'Radio Nova'
             )
           ),
           React.createElement(
