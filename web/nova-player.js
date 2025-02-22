@@ -56,6 +56,7 @@ async function initializePlayer() {
     const playerRef = useRef(null);
     const youtubePlayerRef = useRef(null);
     const tracksRef = useRef([]); // Keep a ref to tracks for event handlers
+    const currentIndexRef = useRef(0); // Add ref for current index
 
     useEffect(() => {
       // Load tracks from playlist table
@@ -89,7 +90,8 @@ async function initializePlayer() {
         if (e.target.tagName === 'A') return;
         e.preventDefault();
         console.log('Manual track selection at index:', index);
-        setCurrentIndex(index); // Update current index immediately
+        setCurrentIndex(index);
+        currentIndexRef.current = index; // Update ref
         playTrack(loadedTracks[index], index);
       };
 
@@ -168,7 +170,8 @@ async function initializePlayer() {
 
       console.log('Playing track at index:', index);
       setCurrentTrack(track);
-      setCurrentIndex(index); // Ensure currentIndex is always in sync
+      setCurrentIndex(index);
+      currentIndexRef.current = index; // Update ref
       setIsPlaying(true);
 
       try {
@@ -220,7 +223,7 @@ async function initializePlayer() {
     };
 
     const playNextTrack = () => {
-      console.log('playNextTrack called, current index:', currentIndex);
+      console.log('playNextTrack called, current index:', currentIndexRef.current);
       const availableTracks = tracksRef.current;
 
       if (!availableTracks.length) {
@@ -232,11 +235,11 @@ async function initializePlayer() {
       if (playMode === 'random') {
         do {
           nextIndex = Math.floor(Math.random() * availableTracks.length);
-        } while (nextIndex === currentIndex && availableTracks.length > 1);
+        } while (nextIndex === currentIndexRef.current && availableTracks.length > 1);
       } else {
-        // Use the current index as the base for finding the next track
-        nextIndex = (currentIndex + 1) % availableTracks.length;
-        console.log('Sequential mode - current:', currentIndex, 'next:', nextIndex);
+        // Use the current index from ref as the base for finding the next track
+        nextIndex = (currentIndexRef.current + 1) % availableTracks.length;
+        console.log('Sequential mode - current:', currentIndexRef.current, 'next:', nextIndex);
       }
 
       console.log('Playing next track at index:', nextIndex, 'out of', availableTracks.length, 'tracks');
