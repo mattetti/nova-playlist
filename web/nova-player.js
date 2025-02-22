@@ -13,340 +13,390 @@ function waitForLibraries() {
 }
 
 async function initializePlayer() {
-  console.log('Starting player initialization...');
   await waitForLibraries();
-  console.log('Libraries loaded:', {
-    react: !!window.React,
-    reactDOM: !!window.ReactDOM,
-    lucide: !!window.lucide,
-    yt: !!window.YT
-  });
 
-  const { useState, useEffect, useRef } = React;
+  const { useState, useEffect, useRef, useCallback } = React;
+
+  // Queue management helper
+  function createQueue(tracks, mode = 'sequential') {
+    const shuffled = mode === 'random'
+      ? [...tracks].sort(() => Math.random() - 0.5)
+      : [...tracks];
+    return {
+      tracks: shuffled,
+      currentIndex: 0,
+      mode
+    };
+  }
 
   // Create Lucide icon components
-  const createIcon = (iconName, props = {}) => {
-    // Convert iconName to kebab case as required by Lucide
-    const kebabName = iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-
-    // Create the icon element using Lucide's global function
-    const element = window.lucide.createIcons({
-      icons: {
-        [kebabName]: {
-          width: props.size || 24,
-          height: props.size || 24,
-        }
-      }
+  function createIcon(name, props = {}) {
+    return window.lucide.createElement(name, {
+      size: props.size || 24,
+      color: props.color || 'currentColor',
+      strokeWidth: 2
     });
-
-    // Return a React element that wraps the icon
-    return React.createElement('i', {
-      className: `lucide lucide-${kebabName}`,
-      style: { display: 'inline-block', width: props.size || 24, height: props.size || 24 }
-    });
-  };
+  }
 
   const NovaPlayer = () => {
-    const [currentTrack, setCurrentTrack] = useState(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [playMode, setPlayMode] = useState('sequential');
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [tracks, setTracks] = useState([]);
+    // Core state
+    const [playerState, setPlayerState] = useState({
+      currentTrack: null,
+      isPlaying: false,
+      isLoading: false,
+      error: null
+    });
 
+    // Queue state with ref for async operations
+    const [queue, setQueue] = useState(() => createQueue([]));
+    const queueRef = useRef(null);
+    useEffect(() => {
+      queueRef.current = queue;
+    }, [queue]);
+
+    // Refs
     const playerRef = useRef(null);
     const youtubePlayerRef = useRef(null);
-    const tracksRef = useRef([]); // Keep a ref to tracks for event handlers
-    const currentIndexRef = useRef(0); // Add ref for current index
-
+    const tracksRef = useRef([]);
+    const playerStateRef = useRef(playerState);
     useEffect(() => {
-      // Load tracks from playlist table
-      const trackElements = document.querySelectorAll('.playlist-entry');
-      const loadedTracks = Array.from(trackElements).map(track => ({
-        title: track.querySelector('.title').textContent,
-        artist: track.querySelector('.artist-name').textContent,
-        ytMusicUrl: track.querySelector('a[href*="music.youtube.com"]').href,
-        videoId: extractVideoId(track.querySelector('a[href*="music.youtube.com"]').href)
-      }));
+      playerStateRef.current = playerState;
+    }, [playerState]);
 
-      console.log('Loaded tracks:', loadedTracks.length);
-      setTracks(loadedTracks);
-      tracksRef.current = loadedTracks; // Store in ref for event handlers
+    // Initialize player and load tracks
+    useEffect(() => {
+      const loadTracks = () => {
+        const trackElements = document.querySelectorAll('.playlist-entry');
+        const tracks = Array.from(trackElements).map(track => ({
+          id: track.dataset.title,
+          title: track.querySelector('.title').textContent,
+          artist: track.querySelector('.artist-name').textContent,
+          ytMusicUrl: track.querySelector('a[href*="music.youtube.com"]').href,
+          videoId: extractVideoId(track.querySelector('a[href*="music.youtube.com"]').href)
+        }));
 
-      // Preload first track in state (but don't play it)
-      if (loadedTracks.length > 0) {
-        setCurrentTrack(loadedTracks[0]);
-        setCurrentIndex(0);
-      }
+        tracksRef.current = tracks;
+        setQueue(createQueue(tracks, queue.mode));
 
-      // Initialize YouTube IFrame API
-      if (window.YT) {
-        initializeYouTubePlayer();
-      } else {
-        window.onYouTubeIframeAPIReady = initializeYouTubePlayer;
-      }
+        // Add click handlers
+        trackElements.forEach((el, index) => {
+          el.style.cursor = 'pointer';
+          el.addEventListener('click', handleTrackClick);
+        });
 
-      // Add click handlers to playlist entries
-      const handleTrackClick = (index, e) => {
-        if (e.target.tagName === 'A') return;
-        e.preventDefault();
-        console.log('Manual track selection at index:', index);
-        setCurrentIndex(index);
-        currentIndexRef.current = index; // Update ref
-        playTrack(loadedTracks[index], index);
+        // Add styles for active track
+        const style = document.createElement('style');
+        style.textContent = `
+          .playlist-entry.playing {
+            background-color: rgba(139, 92, 246, 0.1);
+          }
+          .playlist-entry:hover {
+            background-color: rgba(139, 92, 246, 0.05);
+          }
+        `;
+        document.head.appendChild(style);
+
+        return () => {
+          trackElements.forEach(el => {
+            el.style.cursor = '';
+            el.removeEventListener('click', handleTrackClick);
+          });
+          document.head.removeChild(style);
+        };
       };
 
-      trackElements.forEach((el, index) => {
-        el.style.cursor = 'pointer';
-        el.addEventListener('click', (e) => handleTrackClick(index, e));
-      });
+      return loadTracks();
+    }, []);
 
-      // Add styles for active track
-      const style = document.createElement('style');
-      style.textContent = `
-        .playlist-entry.playing {
-          background-color: rgba(139, 92, 246, 0.1);
-        }
-        .playlist-entry:hover {
-          background-color: rgba(139, 92, 246, 0.05);
-        }
-      `;
-      document.head.appendChild(style);
-
-      // Cleanup
-      return () => {
-        trackElements.forEach((el, index) => {
-          el.style.cursor = '';
-          el.removeEventListener('click', (e) => handleTrackClick(index, e));
+    // YouTube player initialization
+    useEffect(() => {
+      const initYouTubePlayer = () => {
+        youtubePlayerRef.current = new window.YT.Player('youtube-player', {
+          height: '90',
+          width: '160',
+          videoId: '',
+          playerVars: {
+            playsinline: 1,
+            controls: 0,
+            origin: window.location.origin,
+            enablejsapi: 1,
+            autoplay: 0
+          },
+          events: {
+            onReady: () => console.log('YouTube player ready'),
+            onStateChange: handlePlayerStateChange,
+            onError: handlePlayerError
+          }
         });
-        document.head.removeChild(style);
+      };
+
+      if (window.YT) {
+        initYouTubePlayer();
+      } else {
+        window.onYouTubeIframeAPIReady = initYouTubePlayer;
+      }
+
+      return () => {
         if (youtubePlayerRef.current) {
           youtubePlayerRef.current.destroy();
         }
       };
     }, []);
 
-    const initializeYouTubePlayer = () => {
-      youtubePlayerRef.current = new window.YT.Player('youtube-player', {
-        height: '120',
-        width: '200',
-        videoId: '',
-        playerVars: {
-          playsinline: 1,
-          controls: 1,
-          origin: window.location.origin,
-          enablejsapi: 1,
-          autoplay: 1
-        },
-        events: {
-          onReady: (event) => {
-            console.log('YouTube player ready');
-            youtubePlayerRef.current = event.target;
-          },
-          onStateChange: onPlayerStateChange,
-          onError: (e) => console.error('YouTube player error:', e.data)
-        }
+    function handleTrackClick(e) {
+      if (e.target.tagName === 'A') return;
+      e.preventDefault();
+
+      const trackElement = e.currentTarget;
+      const index = Array.from(trackElement.parentElement.children).indexOf(trackElement);
+      const currentTracks = tracksRef.current;
+
+      setQueue(prev => {
+        const newQueue = {
+          ...prev,
+          currentIndex: index,
+          tracks: prev.mode === 'sequential' ? currentTracks : shuffleArray(currentTracks)
+        };
+        queueRef.current = newQueue; // Immediately update ref for async operations
+        return newQueue;
       });
-    };
 
-    const extractVideoId = (url) => {
-      const match = url.match(/[?&]v=([^&]+)/);
-      return match ? match[1] : '';
-    };
+      // Use ref to ensure we have latest track data
+      playTrack(currentTracks[index]);
+    }
 
-    const playTrack = (track, index) => {
-      if (!youtubePlayerRef.current || !track?.videoId) {
-        console.log('Player or video ID not ready:', {
-          player: !!youtubePlayerRef.current,
-          videoId: track?.videoId
-        });
-        return;
+    function handlePlayerStateChange(event) {
+      // Always work with latest state from refs for YouTube callbacks
+      const currentPlayerState = playerStateRef.current;
+      const currentQueue = queueRef.current;
+
+      switch (event.data) {
+        case window.YT.PlayerState.ENDED:
+          if (currentQueue && currentPlayerState) {
+            handleTrackEnd();
+          }
+          break;
+        case window.YT.PlayerState.PLAYING:
+          setPlayerState(prev => {
+            const newState = { ...prev, isPlaying: true, isLoading: false };
+            playerStateRef.current = newState; // Immediately update ref
+            return newState;
+          });
+          break;
+        case window.YT.PlayerState.PAUSED:
+          setPlayerState(prev => {
+            const newState = { ...prev, isPlaying: false };
+            playerStateRef.current = newState;
+            return newState;
+          });
+          break;
+        case window.YT.PlayerState.BUFFERING:
+          setPlayerState(prev => {
+            const newState = { ...prev, isLoading: true };
+            playerStateRef.current = newState;
+            return newState;
+          });
+          break;
       }
+    }
 
-      // Verify that the player is ready and has the required methods
-      if (typeof youtubePlayerRef.current.loadVideoById !== 'function') {
-        console.log('Player methods not ready yet');
-        return;
-      }
+    function handlePlayerError(error) {
+      console.error('YouTube player error:', error);
+      setPlayerState(prev => ({
+        ...prev,
+        error: 'Failed to play track. Skipping to next...'
+      }));
 
-      console.log('Playing track at index:', index);
-      setCurrentTrack(track);
-      setCurrentIndex(index);
-      currentIndexRef.current = index; // Update ref
-      setIsPlaying(true);
+      // Auto-advance on error after a short delay
+      setTimeout(() => {
+        handleTrackEnd();
+        setPlayerState(prev => ({ ...prev, error: null }));
+      }, 3000);
+    }
+
+    function handleTrackEnd() {
+      // Always use refs for latest state in async callbacks
+      const currentQueue = queueRef.current;
+      if (!currentQueue || !currentQueue.tracks.length) return;
+
+      const nextIndex = (currentQueue.currentIndex + 1) % currentQueue.tracks.length;
+
+      setQueue(prev => {
+        const newQueue = { ...prev, currentIndex: nextIndex };
+        queueRef.current = newQueue; // Immediately update ref
+        return newQueue;
+      });
+
+      playTrack(currentQueue.tracks[nextIndex]);
+    }
+
+    function playTrack(track) {
+      if (!youtubePlayerRef.current || !track?.videoId) return;
+
+      setPlayerState(prev => ({
+        ...prev,
+        currentTrack: track,
+        isLoading: true,
+        error: null
+      }));
 
       try {
         youtubePlayerRef.current.loadVideoById({
           videoId: track.videoId,
           startSeconds: 0
         });
-        updatePlaylistHighlight(index);
+
+        // Update playlist highlighting
+        document.querySelectorAll('.playlist-entry').forEach((el) => {
+          el.classList.toggle('playing', el.dataset.title === track.id);
+        });
       } catch (error) {
-        console.error('Error playing track:', error);
+        handlePlayerError(error);
       }
-    };
+    }
 
-    const updatePlaylistHighlight = (index) => {
-      document.querySelectorAll('.playlist-entry').forEach((el, i) => {
-        if (i === index) {
-          el.classList.add('playing');
-        } else {
-          el.classList.remove('playing');
-        }
-      });
-    };
+    function togglePlayMode() {
+      setQueue(prev => ({
+        ...prev,
+        mode: prev.mode === 'sequential' ? 'random' : 'sequential',
+        tracks: prev.mode === 'sequential'
+          ? shuffleArray(prev.tracks)
+          : [...tracksRef.current]
+      }));
+    }
 
-    const togglePlayMode = () => {
-      setPlayMode(prev => prev === 'sequential' ? 'random' : 'sequential');
-    };
-
-    const togglePlayPause = () => {
+    function togglePlayPause() {
       if (!youtubePlayerRef.current) return;
 
-      if (isPlaying) {
+      // Use refs for latest state values
+      const currentPlayerState = playerStateRef.current;
+      const currentQueue = queueRef.current;
+
+      if (currentPlayerState.isPlaying) {
         youtubePlayerRef.current.pauseVideo();
-        setIsPlaying(false);
       } else {
-        if (!currentTrack) {
-          if (tracksRef.current.length > 0) {
-            playTrack(tracksRef.current[0], 0);
-          }
+        if (!currentPlayerState.currentTrack && currentQueue?.tracks.length > 0) {
+          playTrack(currentQueue.tracks[0]);
         } else {
-          if (youtubePlayerRef.current.getPlayerState() === window.YT.PlayerState.ENDED) {
-            // If current track ended, play next instead of replaying current
-            playNextTrack();
-          } else {
-            youtubePlayerRef.current.playVideo();
-            setIsPlaying(true);
-          }
+          youtubePlayerRef.current.playVideo();
         }
       }
-    };
+    }
 
-    const playNextTrack = () => {
-      console.log('playNextTrack called, current index:', currentIndexRef.current);
-      const availableTracks = tracksRef.current;
+    function extractVideoId(url) {
+      const match = url.match(/[?&]v=([^&]+)/);
+      return match ? match[1] : '';
+    }
 
-      if (!availableTracks.length) {
-        console.log('No tracks available');
-        return;
-      }
+    function shuffleArray(array) {
+      return [...array].sort(() => Math.random() - 0.5);
+    }
 
-      let nextIndex;
-      if (playMode === 'random') {
-        do {
-          nextIndex = Math.floor(Math.random() * availableTracks.length);
-        } while (nextIndex === currentIndexRef.current && availableTracks.length > 1);
-      } else {
-        // Use the current index from ref as the base for finding the next track
-        nextIndex = (currentIndexRef.current + 1) % availableTracks.length;
-        console.log('Sequential mode - current:', currentIndexRef.current, 'next:', nextIndex);
-      }
-
-      console.log('Playing next track at index:', nextIndex, 'out of', availableTracks.length, 'tracks');
-      playTrack(availableTracks[nextIndex], nextIndex);
-    };
-
-    const onPlayerStateChange = (event) => {
-      console.log('Player state changed:', event.data);
-
-      if (event.data === window.YT.PlayerState.ENDED) {
-        console.log('Track ended, playing next...');
-        playNextTrack();
-      } else if (event.data === window.YT.PlayerState.PAUSED) {
-        console.log('Track paused');
-        setIsPlaying(false);
-      } else if (event.data === window.YT.PlayerState.PLAYING) {
-        console.log('Track playing');
-        setIsPlaying(true);
-      }
-    };
-
-    // Create the component's elements using React.createElement
-    return       React.createElement(
+    // Render component
+    return React.createElement(
       'div',
       {
-        className: 'fixed bottom-4 right-4 w-80 bg-gray-900 text-white shadow-lg rounded-lg border border-gray-800',
-        ref: playerRef,
+        className: 'fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 shadow-lg',
         style: {
-          zIndex: 50,
           backdropFilter: 'blur(10px)',
-          backgroundColor: 'rgba(17, 24, 39, 0.95)'
+          backgroundColor: 'rgba(17, 24, 39, 0.95)',
+          zIndex: 50
         }
       },
+      // Error message
+      playerState.error && React.createElement(
+        'div',
+        {
+          className: 'flex items-center gap-2 px-4 py-2 bg-red-900/50 text-red-200'
+        },
+        createIcon('alert-circle', { size: 16 }),
+        React.createElement(
+          'span',
+          { className: 'text-sm' },
+          playerState.error
+        )
+      ),
+
+      // Main container
       React.createElement(
         'div',
-        { className: 'p-3' },
+        { className: 'container mx-auto px-4 py-3' },
         React.createElement(
           'div',
-          { className: 'flex items-center justify-between mb-2' },
-        React.createElement(
-          'div',
-          { className: 'flex items-center gap-2' },
-          createIcon('volume-2', { size: 18 }),
-          React.createElement('span', { className: 'font-medium text-sm bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent' }, 'Nova Radio')
-        ),
-        React.createElement(
-          'button',
-          {
-            onClick: togglePlayMode,
-            className: 'p-2 rounded-full hover:bg-gray-700 flex items-center gap-2 text-gray-300 hover:text-white transition-colors',
-            title: playMode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
-          },
-          [
-            createIcon(playMode === 'sequential' ? 'list-ordered' : 'shuffle', { size: 20 }),
+          { className: 'flex items-center justify-between gap-4' },
+          // Player info
+          React.createElement(
+            'div',
+            { className: 'flex items-center gap-4 min-w-0 flex-1' },
             React.createElement(
-              'span',
-              { className: 'text-sm' },
-              playMode === 'sequential' ? 'Sequential' : 'Random'
+              'div',
+              { className: 'flex items-center gap-2' },
+              createIcon('volume-2', { size: 18, color: '#A78BFA' }),
+              React.createElement(
+                'span',
+                { className: 'font-medium text-sm bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent' },
+                'Nova Radio'
+              )
+            ),
+            React.createElement(
+              'div',
+              { className: 'space-y-1 min-w-0' },
+              React.createElement(
+                'p',
+                { className: 'text-sm font-medium text-gray-100 truncate' },
+                playerState.currentTrack?.title || 'Select a track to play'
+              ),
+              React.createElement(
+                'p',
+                { className: 'text-sm text-gray-400 truncate' },
+                playerState.currentTrack?.artist || 'Use play button for sequential playback'
+              )
             )
-          ]
+          ),
+          // Controls
+          React.createElement(
+            'div',
+            { className: 'flex items-center gap-4' },
+            React.createElement(
+              'button',
+              {
+                onClick: togglePlayMode,
+                className: 'p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors',
+                title: queue.mode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
+              },
+              createIcon(queue.mode === 'sequential' ? 'list-ordered' : 'shuffle', { size: 18 })
+            ),
+            React.createElement(
+              'button',
+              {
+                onClick: togglePlayPause,
+                className: 'p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors',
+                disabled: playerState.isLoading,
+                title: playerState.isPlaying ? 'Pause' : 'Play'
+              },
+              createIcon(playerState.isPlaying ? 'pause' : 'play', { size: 24 })
+            ),
+            React.createElement(
+              'button',
+              {
+                onClick: handleTrackEnd,
+                className: 'p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors',
+                title: 'Next track'
+              },
+              createIcon('skip-forward', { size: 18 })
+            )
+          )
         )
       ),
+      // YouTube player (hidden but functional)
       React.createElement(
         'div',
-        { className: 'flex items-center justify-between' },
-        React.createElement(
-          'div',
-          { className: 'space-y-1 flex-1 min-w-0' },
-          React.createElement(
-            'p',
-            { className: 'text-sm font-medium leading-none truncate text-gray-100' },
-            currentTrack ? currentTrack.title : 'Click any track to play'
-          ),
-          React.createElement(
-            'p',
-            { className: 'text-sm text-gray-400 truncate' },
-            currentTrack ? currentTrack.artist : 'Or use the play button for sequential playback'
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'flex items-center gap-4 ml-4' },
-          React.createElement(
-            'button',
-            {
-              onClick: togglePlayPause,
-              className: 'p-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors',
-              title: isPlaying ? 'Pause' : 'Play'
-            },
-            createIcon(isPlaying ? 'pause' : 'play', { size: 24 })
-          ),
-          React.createElement(
-            'button',
-            {
-              onClick: playNextTrack,
-              className: 'p-2 rounded-full hover:bg-gray-100',
-              title: playMode === 'sequential' ? 'Next Track' : 'Random Track'
-            },
-            createIcon('skip-forward', { size: 18 })
-          )
-        )
-      ),
-      React.createElement('div', {
-        id: 'youtube-player',
-        className: 'w-full h-[120px] mt-2 bg-gray-800 rounded-lg overflow-hidden'
-      })
-    ));
+        {
+          id: 'youtube-player',
+          className: 'h-0 overflow-hidden'
+        }
+      )
+    );
   };
 
   // Initialize the player

@@ -25,12 +25,11 @@ var HTMLTmpl = `
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet">
 
     <!-- Core dependencies -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 
-    <!-- Import Lucide Icons from CDN -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+		<!-- Lucide Icons (global version) -->
+		<script src="https://unpkg.com/lucide@latest"></script>
 
     <!-- Error handling for script loading -->
     <script>
