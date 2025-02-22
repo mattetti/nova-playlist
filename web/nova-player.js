@@ -28,8 +28,19 @@ async function initializePlayer() {
   const createIcon = (iconName, props = {}) => {
     // Convert iconName to kebab case as required by Lucide
     const kebabName = iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+
+    // Create the icon element using Lucide's global function
+    const element = window.lucide.createIcons({
+      icons: {
+        [kebabName]: {
+          width: props.size || 24,
+          height: props.size || 24,
+        }
+      }
+    });
+
+    // Return a React element that wraps the icon
     return React.createElement('i', {
-      'data-lucide': kebabName,
       className: `lucide lucide-${kebabName}`,
       style: { display: 'inline-block', width: props.size || 24, height: props.size || 24 }
     });
@@ -48,13 +59,13 @@ async function initializePlayer() {
       playerStateRef.current = playerState;
     }, [playerState]);
 
-    // Queue state with refs and history
+    // Enhanced queue state with refs
     const [queue, setQueue] = useState(() => ({
       tracks: [],
       currentIndex: 0,
       mode: 'sequential',
-      history: [],  // Track play history
-      futureQueue: [] // For tracks queued up manually
+      history: [],
+      futureQueue: []
     }));
     const queueRef = useRef(queue);
     useEffect(() => {
@@ -99,25 +110,6 @@ async function initializePlayer() {
       }
 
       // Add click handlers to playlist entries
-      const handleTrackClick = (index, e) => {
-        if (e.target.tagName === 'A') return;
-        e.preventDefault();
-        console.log('Manual track selection at index:', index);
-        const currentTracks = tracksRef.current;
-
-        setQueue(prev => {
-          const newQueue = {
-            ...prev,
-            currentIndex: index,
-            tracks: prev.mode === 'sequential' ? currentTracks : shuffleArray(currentTracks)
-          };
-          queueRef.current = newQueue;
-          return newQueue;
-        });
-
-        playTrack(currentTracks[index]);
-      };
-
       trackElements.forEach((el, index) => {
         el.style.cursor = 'pointer';
         el.addEventListener('click', (e) => handleTrackClick(index, e));
@@ -166,7 +158,7 @@ async function initializePlayer() {
             youtubePlayerRef.current = event.target;
           },
           onStateChange: onPlayerStateChange,
-          onError: (e) => console.error('YouTube player error:', e.data)
+          onError: handlePlayerError
         }
       });
     };
@@ -176,18 +168,53 @@ async function initializePlayer() {
       return match ? match[1] : '';
     };
 
+    const handleTrackClick = (index, e) => {
+      if (e.target.tagName === 'A') return;
+      e.preventDefault();
+
+      const currentTracks = tracksRef.current;
+      const selectedTrack = currentTracks[index];
+
+      // If shift key is pressed, add to queue instead of playing immediately
+      if (e.shiftKey) {
+        setQueue(prev => {
+          const newQueue = {
+            ...prev,
+            futureQueue: [...prev.futureQueue, selectedTrack]
+          };
+          queueRef.current = newQueue;
+          return newQueue;
+        });
+
+        // Show feedback that track was queued
+        const feedback = document.createElement('div');
+        feedback.textContent = 'Track added to queue';
+        feedback.className = 'fixed bottom-24 right-4 bg-purple-600 text-white px-4 py-2 rounded shadow-lg';
+        document.body.appendChild(feedback);
+        setTimeout(() => document.body.removeChild(feedback), 2000);
+        return;
+      }
+
+      setQueue(prev => {
+        const newQueue = {
+          ...prev,
+          currentIndex: index,
+          tracks: prev.mode === 'sequential' ? currentTracks : shuffleArray(currentTracks),
+          futureQueue: [] // Clear future queue when directly selecting a track
+        };
+        queueRef.current = newQueue;
+        return newQueue;
+      });
+
+      playTrack(selectedTrack);
+    };
+
     const playTrack = (track) => {
       if (!youtubePlayerRef.current || !track?.videoId) {
         console.log('Player or video ID not ready:', {
           player: !!youtubePlayerRef.current,
           videoId: track?.videoId
         });
-        return;
-      }
-
-      // Verify that the player is ready and has the required methods
-      if (typeof youtubePlayerRef.current.loadVideoById !== 'function') {
-        console.log('Player methods not ready yet');
         return;
       }
 
@@ -218,6 +245,27 @@ async function initializePlayer() {
       document.querySelectorAll('.playlist-entry').forEach((el) => {
         el.classList.toggle('playing', el.dataset.title === trackId);
       });
+    };
+
+    const handlePlayerError = (error) => {
+      console.error('YouTube player error:', error);
+      setPlayerState(prev => {
+        const newState = {
+          ...prev,
+          error: 'Failed to play track. Skipping to next...'
+        };
+        playerStateRef.current = newState;
+        return newState;
+      });
+
+      setTimeout(() => {
+        handleTrackEnd();
+        setPlayerState(prev => {
+          const newState = { ...prev, error: null };
+          playerStateRef.current = newState;
+          return newState;
+        });
+      }, 3000);
     };
 
     const onPlayerStateChange = (event) => {
@@ -254,41 +302,6 @@ async function initializePlayer() {
       }
     };
 
-    const handlePlayerError = (error) => {
-      console.error('YouTube player error:', error);
-      setPlayerState(prev => {
-        const newState = {
-          ...prev,
-          error: 'Failed to play track. Skipping to next...'
-        };
-        playerStateRef.current = newState;
-        return newState;
-      });
-
-      setTimeout(() => {
-        handleTrackEnd();
-        setPlayerState(prev => {
-          const newState = { ...prev, error: null };
-          playerStateRef.current = newState;
-          return newState;
-        });
-      }, 3000);
-    };
-
-    const togglePlayMode = () => {
-      setQueue(prev => {
-        const newQueue = {
-          ...prev,
-          mode: prev.mode === 'sequential' ? 'random' : 'sequential',
-          tracks: prev.mode === 'sequential'
-            ? shuffleArray(prev.tracks)
-            : [...tracksRef.current]
-        };
-        queueRef.current = newQueue;
-        return newQueue;
-      });
-    };
-
     const handleTrackEnd = () => {
       const currentQueue = queueRef.current;
       if (!currentQueue || !currentQueue.tracks.length) return;
@@ -314,7 +327,6 @@ async function initializePlayer() {
 
         // Otherwise proceed based on play mode
         if (prev.mode === 'random') {
-          // Avoid playing the same track twice in a row
           do {
             nextIndex = Math.floor(Math.random() * prev.tracks.length);
           } while (
@@ -343,6 +355,20 @@ async function initializePlayer() {
       playTrack(nextTrack);
     };
 
+    const togglePlayMode = () => {
+      setQueue(prev => {
+        const newQueue = {
+          ...prev,
+          mode: prev.mode === 'sequential' ? 'random' : 'sequential',
+          tracks: prev.mode === 'sequential'
+            ? shuffleArray(prev.tracks)
+            : [...tracksRef.current]
+        };
+        queueRef.current = newQueue;
+        return newQueue;
+      });
+    };
+
     const togglePlayPause = () => {
       if (!youtubePlayerRef.current) return;
 
@@ -364,7 +390,6 @@ async function initializePlayer() {
       return [...array].sort(() => Math.random() - 0.5);
     };
 
-    // Return the player component
     return React.createElement(
       'div',
       {

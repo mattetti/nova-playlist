@@ -85,7 +85,7 @@ var HTMLTmpl = `
     </table>
 
     <!-- Nova Player Component -->
-    <div id="nova-player-root" class="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t"></div>
+		<div id="nova-player-root"></div>
 
     <!-- Initialize YouTube IFrame API -->
     <script src="https://www.youtube.com/iframe_api"></script>
