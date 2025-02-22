@@ -23,14 +23,26 @@ async function initializePlayer() {
 
   const { useState, useEffect } = React;
 
+  // Helper function to create DOM elements from HTML strings
+  const createElementFromHTML = (htmlString) => {
+    const div = document.createElement('div');
+    div.innerHTML = htmlString.trim();
+    return div.firstChild;
+  };
+
   // Create icon elements using lucide
   const createIcon = (name, props = {}) => {
+    // Convert PascalCase to kebab-case for icon names
+    const iconName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+
+    // Create a temporary element to hold the icon SVG
     const element = document.createElement('div');
-    element.innerHTML = window.lucide.createElement({
-      name: name.toLowerCase().replace(/([a-z])([A-Z])/g, '$1-$2'),
-      ...props
-    });
-    return element.children[0];
+    element.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${props.width || 24}" height="${props.height || 24}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      ${window.lucide.icons[iconName]}
+    </svg>`;
+
+    // Return the SVG element
+    return element.firstChild;
   };
 
   const NovaPlayer = () => {
@@ -169,7 +181,6 @@ async function initializePlayer() {
     };
 
     const onPlayerStateChange = (event) => {
-      // Update playing state based on YouTube player state
       if (event.data === window.YT.PlayerState.ENDED) {
         playNextTrack();
       } else if (event.data === window.YT.PlayerState.PAUSED) {
@@ -188,7 +199,7 @@ async function initializePlayer() {
         React.createElement(
           'div',
           { className: 'flex items-center gap-2' },
-          createIcon('Volume2', { width: 24, height: 24 }),
+          createIcon('volume-2', { width: 24, height: 24 }),
           React.createElement('span', { className: 'font-bold' }, 'Nova Radio Player')
         ),
         React.createElement(
@@ -199,7 +210,7 @@ async function initializePlayer() {
             title: playMode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
           },
           [
-            createIcon(playMode === 'sequential' ? 'ListOrdered' : 'Shuffle', { width: 20, height: 20 }),
+            createIcon(playMode === 'sequential' ? 'list-ordered' : 'shuffle', { width: 20, height: 20 }),
             React.createElement('span', { key: 'text', className: 'text-sm' },
               playMode === 'sequential' ? 'Sequential' : 'Random'
             )
@@ -234,7 +245,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: isPlaying ? 'Pause' : 'Play'
             },
-            createIcon(isPlaying ? 'Pause' : 'Play', { width: 24, height: 24 })
+            createIcon(isPlaying ? 'pause' : 'play', { width: 24, height: 24 })
           ),
           React.createElement(
             'button',
@@ -243,7 +254,7 @@ async function initializePlayer() {
               className: 'p-2 rounded-full hover:bg-gray-100',
               title: playMode === 'sequential' ? 'Next Track' : 'Random Track'
             },
-            createIcon('SkipForward', { width: 24, height: 24 })
+            createIcon('skip-forward', { width: 24, height: 24 })
           )
         )
       ),
