@@ -113,15 +113,20 @@ async function initializePlayer() {
 
     const initializeYouTubePlayer = () => {
       youtubePlayerRef.current = new window.YT.Player('youtube-player', {
-        height: '0',
-        width: '0',
+        height: '200',
+        width: '300',
         videoId: '',
         playerVars: {
           playsinline: 1,
-          controls: 0,
-          origin: window.location.origin // Add origin for postMessage
+          controls: 1,
+          origin: window.location.origin,
+          enablejsapi: 1
         },
         events: {
+          onReady: (event) => {
+            console.log('YouTube player ready');
+            youtubePlayerRef.current = event.target; // Store the actual player instance
+          },
           onStateChange: onPlayerStateChange,
           onError: (e) => console.error('YouTube player error:', e)
         }
@@ -130,18 +135,38 @@ async function initializePlayer() {
 
     const extractVideoId = (url) => {
       const match = url.match(/[?&]v=([^&]+)/);
+      console.log('Extracting video ID from URL:', url, 'Result:', match ? match[1] : null);
       return match ? match[1] : '';
     };
 
     const playTrack = (track, index) => {
-      if (!youtubePlayerRef.current || !track?.videoId) return;
+      if (!youtubePlayerRef.current || !track?.videoId) {
+        console.log('Player or video ID not ready:', {
+          player: !!youtubePlayerRef.current,
+          videoId: track?.videoId
+        });
+        return;
+      }
+
+      // Verify that the player is ready and has the required methods
+      if (typeof youtubePlayerRef.current.loadVideoById !== 'function') {
+        console.log('Player methods not ready yet');
+        return;
+      }
 
       setCurrentTrack(track);
       setCurrentIndex(index);
       setIsPlaying(true);
 
-      youtubePlayerRef.current.loadVideoById(track.videoId);
-      updatePlaylistHighlight(index);
+      try {
+        youtubePlayerRef.current.loadVideoById({
+          videoId: track.videoId,
+          startSeconds: 0
+        });
+        updatePlaylistHighlight(index);
+      } catch (error) {
+        console.error('Error playing track:', error);
+      }
     };
 
     const updatePlaylistHighlight = (index) => {
@@ -269,7 +294,10 @@ async function initializePlayer() {
           )
         )
       ),
-      React.createElement('div', { id: 'youtube-player', className: 'hidden' })
+      React.createElement('div', {
+        id: 'youtube-player',
+        className: 'w-full max-w-[300px] h-[200px] mt-4'
+      })
     );
   };
 
