@@ -28,6 +28,8 @@ var (
 	skipExistingFlag = flag.Bool("skip-existing", true, "skip if playlist already exists (default true)")
 	credentialsFile  = flag.String("credentials", "client_secret.json", "path to OAuth2 credentials file")
 	tokenFile        = flag.String("token", "token.json", "path to OAuth2 token file")
+	yearlyFlag       = flag.Bool("yearly", false, "create a yearly playlist with top 100 most played songs")
+	limitFlag        = flag.Int("limit", 100, "limit the number of songs per playlist (default 100)")
 )
 
 type PlaylistCreator struct {
@@ -226,14 +228,94 @@ func (pc *PlaylistCreator) checkIfExists(title string) (bool, error) {
 	return false, nil
 }
 
+func createYearlyPlaylist(creator *PlaylistCreator, year int) (string, error) {
+	// Load all playlists for the year
+	files, err := os.ReadDir(nova.PlaylistDataPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read playlists directory: %v", err)
+	}
+
+	// Track frequency map
+	type TrackInfo struct {
+		Track     nova.Track
+		PlayCount int
+	}
+	trackMap := make(map[string]*TrackInfo)
+
+	// Process all monthly playlists for the year
+	for _, file := range files {
+		if !strings.HasPrefix(file.Name(), fmt.Sprintf("playlist-")) || !strings.HasSuffix(file.Name(), ".gob") {
+			continue
+		}
+
+		playlist, err := nova.LoadPlaylistFromFile(filepath.Join(nova.PlaylistDataPath, file.Name()))
+		if err != nil {
+			log.Printf("Warning: Could not load playlist %s: %v\n", file.Name(), err)
+			continue
+		}
+
+		// Only process playlists from the specified year
+		if playlist.Year != year {
+			continue
+		}
+
+		// Count occurrences of each track
+		for _, track := range playlist.Tracks {
+			key := fmt.Sprintf("%s-%s", track.Artist, track.Title)
+			if info, exists := trackMap[key]; exists {
+				info.PlayCount++
+			} else {
+				trackMap[key] = &TrackInfo{Track: *track, PlayCount: 1}
+			}
+		}
+	}
+
+	// Convert map to slice for sorting
+	var tracks []TrackInfo
+	for _, info := range trackMap {
+		tracks = append(tracks, *info)
+	}
+
+	// Sort tracks by play count (descending)
+	sort.Slice(tracks, func(i, j int) bool {
+		return tracks[i].PlayCount > tracks[j].PlayCount
+	})
+
+	// Create new playlist with top 100 tracks
+	yearlyPlaylist := &nova.Playlist{
+		Year:   year,
+		Tracks: make([]*nova.Track, 0),
+	}
+
+	// Take top 100 tracks
+	count := 0
+	for _, info := range tracks {
+		if count >= 100 {
+			break
+		}
+		yearlyPlaylist.Tracks = append(yearlyPlaylist.Tracks, &info.Track)
+		count++
+	}
+	yearlyPlaylist.Name = fmt.Sprintf("Radio Nova - Top 100 of %d", year)
+
+	return creator.CreatePlaylist(yearlyPlaylist)
+}
+
 func (pc *PlaylistCreator) CreatePlaylist(novaPlaylist *nova.Playlist) (string, error) {
 	// Check if we have enough quota for minimum operations (create playlist + at least one track)
 	if pc.quotaUsed+QuotaCreatePlaylist+QuotaAddTrack > DailyQuotaLimit {
 		return "", fmt.Errorf("insufficient quota remaining: %d/%d used", pc.quotaUsed, DailyQuotaLimit)
 	}
 
-	playlistTitle := fmt.Sprintf("Radio Nova - %s", novaPlaylist.Title())
+	// Determine playlist title based on type
+	var playlistTitle string
+	if strings.HasPrefix(novaPlaylist.Title(), "Top 100 of") {
+		playlistTitle = fmt.Sprintf("Radio Nova - %s", novaPlaylist.Title())
+	} else {
+		playlistTitle = fmt.Sprintf("Radio Nova - %s", novaPlaylist.Title())
+	}
 
+	// Check if playlist already exists
 	if *skipExistingFlag {
 		exists, err := pc.checkIfExists(playlistTitle)
 		if err != nil {
@@ -243,11 +325,13 @@ func (pc *PlaylistCreator) CreatePlaylist(novaPlaylist *nova.Playlist) (string, 
 		}
 	}
 
+	// Set privacy status
 	privacyStatus := "public"
 	if pc.private {
 		privacyStatus = "private"
 	}
 
+	// Create playlist metadata
 	playlist := &youtube.Playlist{
 		Snippet: &youtube.PlaylistSnippet{
 			Title:       playlistTitle,
@@ -258,7 +342,7 @@ func (pc *PlaylistCreator) CreatePlaylist(novaPlaylist *nova.Playlist) (string, 
 		},
 	}
 
-	// Create playlist
+	// Create the playlist
 	pc.quotaUsed += QuotaCreatePlaylist
 	log.Printf("Creating playlist (quota used: %d/%d)", pc.quotaUsed, DailyQuotaLimit)
 
@@ -275,24 +359,34 @@ func (pc *PlaylistCreator) CreatePlaylist(novaPlaylist *nova.Playlist) (string, 
 
 	log.Printf("Created playlist: %s\n", playlistTitle)
 
+	// Prepare tracks for processing
+	tracksToProcess := novaPlaylist.Tracks
+
+	// Apply track limit if specified
+	if *limitFlag > 0 && len(tracksToProcess) > *limitFlag {
+		tracksToProcess = tracksToProcess[:*limitFlag]
+	}
+
 	// Add tracks to the playlist
 	added := 0
 	skipped := 0
-	totalTracks := len(novaPlaylist.Tracks)
+	totalTracks := len(tracksToProcess)
 
-	for i, track := range novaPlaylist.Tracks {
-		// Check if we have enough quota for another track
+	for i, track := range tracksToProcess {
+		// Check quota before adding track
 		if pc.quotaUsed+QuotaAddTrack > DailyQuotaLimit {
 			log.Printf("Stopping: quota limit reached. Added %d/%d tracks", added, totalTracks)
 			break
 		}
 
+		// Skip tracks without YouTube IDs
 		if track.YTMusicInfo == nil || track.YTMusicInfo.VideoID == "" {
 			skipped++
 			log.Printf("Skipping track '%s - %s': no YouTube ID\n", track.Artist, track.Title)
 			continue
 		}
 
+		// Create playlist item
 		playlistItem := &youtube.PlaylistItem{
 			Snippet: &youtube.PlaylistItemSnippet{
 				PlaylistId: resp.Id,
@@ -303,6 +397,7 @@ func (pc *PlaylistCreator) CreatePlaylist(novaPlaylist *nova.Playlist) (string, 
 			},
 		}
 
+		// Add track to playlist
 		pc.quotaUsed += QuotaAddTrack
 		_, err := pc.service.PlaylistItems.Insert([]string{"snippet"}, playlistItem).Do()
 		if err != nil {
@@ -322,12 +417,13 @@ func (pc *PlaylistCreator) CreatePlaylist(novaPlaylist *nova.Playlist) (string, 
 				added, totalTracks, pc.quotaUsed, DailyQuotaLimit)
 		}
 
-		// Add a small delay between additions to avoid rate limiting
+		// Add delay between additions to avoid rate limiting
 		time.Sleep(500 * time.Millisecond)
 	}
 
 	log.Printf("Added %d tracks, skipped %d tracks (quota used: %d/%d)\n",
 		added, skipped, pc.quotaUsed, DailyQuotaLimit)
+
 	return fmt.Sprintf("https://music.youtube.com/playlist?list=%s", resp.Id), nil
 }
 
@@ -381,6 +477,19 @@ func main() {
 	creator, err := NewPlaylistCreator(*credentialsFile, *tokenFile, *privateFlag)
 	if err != nil {
 		log.Fatalf("Failed to create playlist creator: %v", err)
+	}
+
+	if *yearlyFlag {
+		year := *yearFlag
+		if year == 0 {
+			year = time.Now().Year()
+		}
+		url, err := createYearlyPlaylist(creator, year)
+		if err != nil {
+			log.Fatalf("Failed to create yearly playlist: %v", err)
+		}
+		fmt.Printf("Created yearly playlist: %s\n", url)
+		return
 	}
 
 	if *allFlag {

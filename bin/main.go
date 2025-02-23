@@ -72,6 +72,62 @@ func main() {
 
 }
 
+// generateYearlyPlaylist aggregates monthly playlists for a given year into a yearly playlist.
+// It sums duplicate track play counts, sorts by play count, and keeps only the top 100 songs.
+func generateYearlyPlaylist(year int, monthlyPlaylists []*nova.Playlist) {
+	// Aggregate tracks by key.
+	trackMap := make(map[string]*nova.Track)
+	for _, pl := range monthlyPlaylists {
+		if pl.Year != year {
+			continue
+		}
+		for _, t := range pl.Tracks {
+			key := t.Key()
+			if existing, ok := trackMap[key]; ok {
+				existing.Count += t.Count
+			} else {
+				trackMap[key] = &nova.Track{
+					Artist:     t.Artist,
+					Title:      t.Title,
+					ImgURL:     t.ImgURL,
+					SpotifyURL: t.SpotifyURL,
+					Count:      t.Count,
+				}
+			}
+		}
+	}
+	// Convert the map into a slice.
+	var aggregatedTracks []*nova.Track
+	for _, t := range trackMap {
+		aggregatedTracks = append(aggregatedTracks, t)
+	}
+	// Sort tracks by play count in descending order.
+	sort.Slice(aggregatedTracks, func(i, j int) bool {
+		return aggregatedTracks[i].Count > aggregatedTracks[j].Count
+	})
+	// Keep only the top 100 tracks.
+	if len(aggregatedTracks) > 100 {
+		aggregatedTracks = aggregatedTracks[:100]
+	}
+	// Create the yearly playlist.
+	yearlyPlaylist := &nova.Playlist{
+		Tracks: aggregatedTracks,
+		Year:   year,
+		Name:   strconv.Itoa(year),
+	}
+	// Generate the HTML page using the existing template.
+	htmlData, err := yearlyPlaylist.ToHTML()
+	if err != nil {
+		log.Fatal("Error generating yearly HTML:", err)
+	}
+	// Save the yearly HTML file as "<year>.html"
+	filename := filepath.Join("web", strconv.Itoa(year)+".html")
+	if err := os.WriteFile(filename, htmlData, os.ModePerm); err != nil {
+		log.Fatal("Error writing yearly HTML file:", err)
+	}
+	fmt.Println("Generated yearly playlist HTML:", filename)
+}
+
 func execute(month int, year int, shouldGenerate bool) {
 	date := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	if date.After(time.Now().UTC()) {
@@ -176,6 +232,16 @@ func execute(month int, year int, shouldGenerate bool) {
 		if err = index.SaveToDisk(); err != nil {
 			log.Fatal(err)
 		}
+
+		// Aggregate monthly playlists into yearly playlists.
+		yearSet := make(map[int]bool)
+		for _, pl := range playlists {
+			yearSet[pl.Year] = true
+		}
+		for yr := range yearSet {
+			generateYearlyPlaylist(yr, playlists)
+		}
+
 	}
 
 }

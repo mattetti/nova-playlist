@@ -25,11 +25,12 @@ Build the binary:
 go build -o ytplaylist bin/ytplaylist/main.go
 ```
 
-Set your API key:
+Set your OAuth API token from Google console and save it as:
 
 ```bash
-export YOUTUBE_API_KEY=your_api_key_here
+client_secret.json
 ```
+in the same directory as the binary.
 
 Run it in different modes:
 
