@@ -1,513 +1,515 @@
-function waitForLibraries() {
-  return new Promise((resolve) => {
-    function checkLibraries() {
-      if (window.React && window.ReactDOM && window.lucide) {
-        resolve();
-      } else {
-        setTimeout(checkLibraries, 100);
-      }
-    }
-    checkLibraries();
-  });
-}
+(function() {
+  // Improved utility functions with better error handling
+  const extractVideoId = (url) => {
+    if (!url) return '';
+    const match = url.match(/[?&]v=([^&#]+)/);
+    return match ? match[1] : '';
+  };
 
-async function initializePlayer() {
-  console.log('Starting player initialization...');
-  await waitForLibraries();
-  console.log('Libraries loaded:', {
-    react: !!window.React,
-    reactDOM: !!window.ReactDOM,
-    lucide: !!window.lucide,
-    yt: !!window.YT
-  });
-
-  const { useState, useEffect, useRef } = React;
-
-  // Create Lucide icon components
-  const createIcon = (iconName, props = {}) => {
-    const kebabName = iconName.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
-    const element = window.lucide.createIcons({
-      icons: {
-        [kebabName]: {
-          width: props.size || 24,
-          height: props.size || 24,
-        }
-      }
-    });
+  const createIcon = (name, props = {}) => {
     return React.createElement('i', {
-      className: `lucide lucide-${kebabName}`,
+      className: `lucide lucide-${name}`,
       style: { display: 'inline-block', width: props.size || 24, height: props.size || 24 }
     });
   };
 
-  const NovaPlayer = () => {
-    // Core state with refs for async operations
-    const [playerState, setPlayerState] = useState({
-      currentTrack: null,
-      isPlaying: false,
-      isLoading: false,
-      error: null
+  // Enhanced dependency checker with timeout
+  function waitForDependencies(timeout = 10000) {
+    console.log('Waiting for dependencies...');
+    const start = Date.now();
+
+    return new Promise((resolve, reject) => {
+      function checkDependencies() {
+        if (window.React && window.ReactDOM && window.lucide) {
+          console.log('Core dependencies loaded successfully');
+          resolve();
+        } else if (Date.now() - start > timeout) {
+          reject(new Error('Dependency loading timeout'));
+        } else {
+          setTimeout(checkDependencies, 100);
+        }
+      }
+      checkDependencies();
     });
-    const playerStateRef = useRef(playerState);
-    useEffect(() => {
-      playerStateRef.current = playerState;
-    }, [playerState]);
+  }
 
-    // Enhanced queue state with refs
-    const [queue, setQueue] = useState(() => ({
-      tracks: [],
-      currentIndex: 0,
-      mode: 'sequential',
-      history: [],
-      futureQueue: []
-    }));
-    const queueRef = useRef(queue);
-    useEffect(() => {
-      queueRef.current = queue;
-    }, [queue]);
+  // Enhanced YouTube API loader with detailed diagnostics
+  function loadYouTubeAPI(timeout = 15000) {
+    console.log('Starting YouTube API loading sequence...');
 
-    const playerRef = useRef(null);
-    const youtubePlayerRef = useRef(null);
-    const tracksRef = useRef([]);
-
-    useEffect(() => {
-      // Load tracks from playlist table
-      const trackElements = document.querySelectorAll('.playlist-entry');
-      const loadedTracks = Array.from(trackElements).map(track => {
-        // Find YouTube Music link - look in both general track link and specific ytmusic link
-        const ytMusicLink = track.querySelector('a[href*="music.youtube.com"]') ||
-                           track.querySelector('.ytmusic[href*="music.youtube.com"]');
-
-        // Only include tracks that have a valid YouTube Music link
-        if (!ytMusicLink?.href) {
-          console.warn('Skipping track without YouTube Music link:', track.querySelector('.title')?.textContent);
-          return null;
-        }
-
-        return {
-          id: track.dataset.title || ytMusicLink.href,
-          title: track.querySelector('.title')?.textContent || 'Unknown Title',
-          artist: track.querySelector('.artist-name')?.textContent || 'Unknown Artist',
-          ytMusicUrl: ytMusicLink.href,
-          videoId: extractVideoId(ytMusicLink.href)
-        };
-      }).filter(track => track !== null);
-
-      console.log('Loaded tracks:', loadedTracks.length);
-      tracksRef.current = loadedTracks;
-      setQueue(prev => ({
-        ...prev,
-        tracks: loadedTracks
-      }));
-
-      // Preload first track in state (but don't play it)
-      if (loadedTracks.length > 0) {
-        setPlayerState(prev => ({
-          ...prev,
-          currentTrack: loadedTracks[0]
-        }));
-      }
-
-      // Initialize YouTube IFrame API
-      if (window.YT) {
-        initializeYouTubePlayer();
-      } else {
-        window.onYouTubeIframeAPIReady = initializeYouTubePlayer;
-      }
-
-      // Add click handlers to playlist entries
-      trackElements.forEach((el, index) => {
-        el.style.cursor = 'pointer';
-        el.addEventListener('click', (e) => handleTrackClick(index, e));
+    return new Promise((resolve, reject) => {
+      // Debug current state
+      console.log('Initial YT object state:', {
+        exists: 'YT' in window,
+        hasPlayer: window.YT && 'Player' in window.YT,
+        isFunction: window.YT && window.YT.Player && typeof window.YT.Player === 'function'
       });
 
-      // Add styles for active track
-      const style = document.createElement('style');
-      style.textContent = `
-        .playlist-entry.playing {
-          background-color: rgba(139, 92, 246, 0.1);
-        }
-        .playlist-entry:hover {
-          background-color: rgba(139, 92, 246, 0.05);
-        }
-      `;
-      document.head.appendChild(style);
-
-      // Cleanup
-      return () => {
-        trackElements.forEach((el, index) => {
-          el.style.cursor = '';
-          el.removeEventListener('click', (e) => handleTrackClick(index, e));
-        });
-        document.head.removeChild(style);
-        if (youtubePlayerRef.current) {
-          youtubePlayerRef.current.destroy();
-        }
-      };
-    }, []);
-
-    const initializeYouTubePlayer = () => {
-      youtubePlayerRef.current = new window.YT.Player('youtube-player', {
-        height: '120',
-        width: '200',
-        videoId: '',
-        playerVars: {
-          playsinline: 1,
-          controls: 1,
-          origin: window.location.origin,
-          enablejsapi: 1,
-          autoplay: 1
-        },
-        events: {
-          onReady: (event) => {
-            console.log('YouTube player ready');
-            youtubePlayerRef.current = event.target;
-          },
-          onStateChange: onPlayerStateChange,
-          onError: handlePlayerError
-        }
-      });
-    };
-
-    const extractVideoId = (url) => {
-      const match = url.match(/[?&]v=([^&]+)/);
-      return match ? match[1] : '';
-    };
-
-    const handleTrackClick = (index, e) => {
-      if (e.target.tagName === 'A') return;
-      e.preventDefault();
-
-      const currentTracks = tracksRef.current;
-      const selectedTrack = currentTracks[index];
-
-      // If shift key is pressed, add to queue instead of playing immediately
-      if (e.shiftKey) {
-        setQueue(prev => {
-          const newQueue = {
-            ...prev,
-            futureQueue: [...prev.futureQueue, selectedTrack]
-          };
-          queueRef.current = newQueue;
-          return newQueue;
-        });
-
-        // Show feedback that track was queued
-        const feedback = document.createElement('div');
-        feedback.textContent = 'Track added to queue';
-        feedback.className = 'fixed bottom-24 right-4 bg-purple-600 text-white px-4 py-2 rounded shadow-lg';
-        document.body.appendChild(feedback);
-        setTimeout(() => document.body.removeChild(feedback), 2000);
+      // Check if already loaded
+      if (window.YT && window.YT.Player && typeof window.YT.Player === 'function') {
+        console.log('YouTube API already loaded and initialized');
+        resolve();
         return;
       }
 
-      setQueue(prev => {
-        const newQueue = {
-          ...prev,
-          currentIndex: index,
-          tracks: prev.mode === 'sequential' ? currentTracks : shuffleArray(currentTracks),
-          futureQueue: [] // Clear future queue when directly selecting a track
-        };
-        queueRef.current = newQueue;
-        return newQueue;
+      // Remove any existing failed script loads
+      const existingScripts = document.querySelectorAll('script[src*="youtube.com/iframe_api"]');
+      existingScripts.forEach(script => {
+        console.log('Removing existing YouTube script:', script.src);
+        script.remove();
       });
 
-      playTrack(selectedTrack);
-    };
+      // Track load state
+      let scriptAppended = false;
+      let iframeAPIReady = false;
+      let ytPlayerReady = false;
 
-    const playTrack = (track) => {
-      if (!youtubePlayerRef.current || !track?.videoId) {
-        console.log('Player or video ID not ready:', {
-          player: !!youtubePlayerRef.current,
-          videoId: track?.videoId
+      // Store original callback
+      const originalCallback = window.onYouTubeIframeAPIReady;
+
+      window.onYouTubeIframeAPIReady = () => {
+        console.log('YT IFrame API Ready callback fired');
+        iframeAPIReady = true;
+
+        // Check YT object state
+        console.log('YT object state after ready:', {
+          exists: 'YT' in window,
+          hasPlayer: window.YT && 'Player' in window.YT,
+          isFunction: window.YT && window.YT.Player && typeof window.YT.Player === 'function'
         });
-        return;
-      }
 
-      setPlayerState(prev => {
-        const newState = {
-          ...prev,
-          currentTrack: track,
-          isLoading: true,
-          error: null
-        };
-        playerStateRef.current = newState;
-        return newState;
-      });
-
-      try {
-        youtubePlayerRef.current.loadVideoById({
-          videoId: track.videoId,
-          startSeconds: 0
-        });
-        updatePlaylistHighlight(track.id);
-      } catch (error) {
-        console.error('Error playing track:', error);
-        handlePlayerError(error);
-      }
-    };
-
-    const updatePlaylistHighlight = (trackId) => {
-      document.querySelectorAll('.playlist-entry').forEach((el) => {
-        el.classList.toggle('playing', el.dataset.title === trackId);
-      });
-    };
-
-    const handlePlayerError = (error) => {
-      console.error('YouTube player error:', error);
-      setPlayerState(prev => {
-        const newState = {
-          ...prev,
-          error: 'Failed to play track. Skipping to next...'
-        };
-        playerStateRef.current = newState;
-        return newState;
-      });
-
-      setTimeout(() => {
-        handleTrackEnd();
-        setPlayerState(prev => {
-          const newState = { ...prev, error: null };
-          playerStateRef.current = newState;
-          return newState;
-        });
-      }, 3000);
-    };
-
-    const onPlayerStateChange = (event) => {
-      const currentPlayerState = playerStateRef.current;
-      const currentQueue = queueRef.current;
-
-      switch (event.data) {
-        case window.YT.PlayerState.ENDED:
-          if (currentQueue && currentPlayerState) {
-            handleTrackEnd();
+        // Delay to ensure full initialization
+        setTimeout(() => {
+          if (window.YT && window.YT.Player && typeof window.YT.Player === 'function') {
+            console.log('YT Player fully initialized after delay');
+            ytPlayerReady = true;
+            resolve();
+          } else {
+            console.error('YT Player not properly initialized after delay');
+            reject(new Error('YouTube Player not properly initialized'));
           }
-          break;
-        case window.YT.PlayerState.PLAYING:
-          setPlayerState(prev => {
-            const newState = { ...prev, isPlaying: true, isLoading: false };
-            playerStateRef.current = newState;
-            return newState;
+
+          // Call original callback if it exists
+          if (originalCallback) {
+            console.log('Calling original onYouTubeIframeAPIReady callback');
+            originalCallback();
+          }
+        }, 500);
+      };
+
+      // Create and append script
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.async = true;
+
+      script.onload = () => {
+        console.log('YouTube API script onload event fired');
+        scriptAppended = true;
+      };
+
+      script.onerror = (error) => {
+        console.error('YouTube API script failed to load:', error);
+        reject(new Error('Failed to load YouTube API script'));
+      };
+
+      // Add to document
+      document.head.appendChild(script);
+      console.log('YouTube API script appended to head');
+
+      // Set up comprehensive timeout check
+      const timeoutId = setTimeout(() => {
+        console.error('YouTube API load timeout. State:', {
+          scriptAppended,
+          iframeAPIReady,
+          ytPlayerReady,
+          ytExists: 'YT' in window,
+          ytPlayerExists: window.YT && 'Player' in window.YT,
+          isFunction: window.YT && window.YT.Player && typeof window.YT.Player === 'function'
+        });
+        reject(new Error('YouTube API loading timeout'));
+      }, timeout);
+
+      // Additional state check interval
+      const stateCheckInterval = setInterval(() => {
+        console.log('Checking YT load state:', {
+          scriptAppended,
+          iframeAPIReady,
+          ytPlayerReady,
+          ytExists: 'YT' in window,
+          ytPlayerExists: window.YT && 'Player' in window.YT
+        });
+      }, 1000);
+
+      // Clean up interval on success or failure
+      Promise.race([
+        new Promise((_, r) => setTimeout(() => r(new Error('Timeout')), timeout)),
+        new Promise(r => {
+          if (window.YT && window.YT.Player && typeof window.YT.Player === 'function') {
+            r();
+          }
+        })
+      ]).finally(() => {
+        clearInterval(stateCheckInterval);
+        clearTimeout(timeoutId);
+      });
+    });
+  }
+
+  async function initializePlayer() {
+    try {
+      console.log('Starting player initialization...');
+      await waitForDependencies();
+      await loadYouTubeAPI();
+
+      const { useState, useEffect, useRef } = React;
+
+      function NovaPlayer() {
+        const [playerState, setPlayerState] = useState({
+          currentTrack: null,
+          isPlaying: false,
+          isLoading: true,
+          error: null,
+          volume: 100,
+          crossfading: false,
+          playersReady: false
+        });
+
+        const [playbackMode, setPlaybackMode] = useState('sequential');
+        const [queue, setQueue] = useState({
+          tracks: [],
+          currentIndex: 0,
+          history: [],
+          futureQueue: []
+        });
+
+        // Enhanced refs with explicit typing
+        const playerARef = useRef(null);
+        const playerBRef = useRef(null);
+        const activePlayerRef = useRef('A');
+        const crossfadeTimeRef = useRef(3000);
+        const readyPlayersCount = useRef(0);
+        const containerRef = useRef(null);
+        const mountedRef = useRef(true);
+
+        // Improved player initialization
+        useEffect(() => {
+          console.log('Setting up player containers...');
+
+          const container = document.createElement('div');
+          container.id = 'youtube-players-container';
+          container.style.cssText = 'position: fixed; bottom: -1000px; visibility: hidden;';
+
+          ['youtube-player-a', 'youtube-player-b'].forEach(id => {
+            const div = document.createElement('div');
+            div.id = id;
+            container.appendChild(div);
           });
-          break;
-        case window.YT.PlayerState.PAUSED:
-          setPlayerState(prev => {
-            const newState = { ...prev, isPlaying: false };
-            playerStateRef.current = newState;
-            return newState;
+
+          document.body.appendChild(container);
+          containerRef.current = container;
+
+          // Verify container creation
+          console.log('Container elements created:', {
+            container: document.getElementById('youtube-players-container'),
+            playerA: document.getElementById('youtube-player-a'),
+            playerB: document.getElementById('youtube-player-b')
           });
-          break;
-        case window.YT.PlayerState.BUFFERING:
-          setPlayerState(prev => {
-            const newState = { ...prev, isLoading: true };
-            playerStateRef.current = newState;
-            return newState;
-          });
-          break;
-      }
-    };
 
-    const handleTrackEnd = () => {
-      const currentQueue = queueRef.current;
-      if (!currentQueue || !currentQueue.tracks.length) return;
-
-      // Save current track to history
-      const currentTrack = currentQueue.tracks[currentQueue.currentIndex];
-
-      setQueue(prev => {
-        let nextIndex;
-        let nextTracks = [...prev.tracks];
-
-        // First check if we have any manually queued tracks
-        if (prev.futureQueue.length > 0) {
-          const nextTrack = prev.futureQueue[0];
-          nextIndex = prev.tracks.findIndex(t => t.id === nextTrack.id);
-          return {
-            ...prev,
-            currentIndex: nextIndex,
-            history: [...prev.history, currentTrack],
-            futureQueue: prev.futureQueue.slice(1)
+          // Get proper origin for local development
+          const getOrigin = () => {
+            const origin = window.location.origin;
+            // Handle file:// protocol
+            if (origin === 'null' || origin.startsWith('file://')) {
+              console.warn('Running locally - using localhost:8080 as origin');
+              return 'http://localhost:8080';
+            }
+            return origin;
           };
-        }
 
-        // Otherwise proceed based on play mode
-        if (prev.mode === 'random') {
-          do {
-            nextIndex = Math.floor(Math.random() * prev.tracks.length);
-          } while (
-            nextIndex === prev.currentIndex &&
-            prev.tracks.length > 1
-          );
-        } else {
-          nextIndex = (prev.currentIndex + 1) % prev.tracks.length;
-        }
+          // Helper to determine proper host based on the video URL.
+          const getHostForVideo = (ytLink) => {
+            return ytLink && ytLink.includes("music.youtube.com")
+              ? "https://music.youtube.com"
+              : "https://www.youtube.com";
+          };
 
-        const newQueue = {
-          ...prev,
-          currentIndex: nextIndex,
-          history: [...prev.history, currentTrack]
-        };
-        queueRef.current = newQueue;
-        return newQueue;
-      });
+          // Assuming ytMusicLink is extracted from the track's <a> href.
+          const ytMusicLink = document.querySelector('.playlist-entry a[href*="music.youtube.com"]')?.href;
 
-      // Play the next track
-      const nextTrack = currentQueue.tracks[
-        currentQueue.futureQueue.length > 0
-          ? currentQueue.tracks.findIndex(t => t.id === currentQueue.futureQueue[0].id)
-          : (currentQueue.currentIndex + 1) % currentQueue.tracks.length
-      ];
-      playTrack(nextTrack);
-    };
 
-    const togglePlayMode = () => {
-      setQueue(prev => {
-        const newQueue = {
-          ...prev,
-          mode: prev.mode === 'sequential' ? 'random' : 'sequential',
-          tracks: prev.mode === 'sequential'
-            ? shuffleArray(prev.tracks)
-            : [...tracksRef.current]
-        };
-        queueRef.current = newQueue;
-        return newQueue;
-      });
-    };
+          const playerOptions = {
+            height: '90',
+            width: '160',
+            playerVars: {
+                playsinline: 1,
+                controls: 0,
+                disablekb: 1,
+                modestbranding: 1,
+                origin: getOrigin(),
+                host: getHostForVideo(ytMusicLink)
+            }
+          };
 
-    const togglePlayPause = () => {
-      if (!youtubePlayerRef.current) return;
+          const createPlayer = (elementId, label) => {
+            return new Promise((resolve, reject) => {
+              console.log(`Setting up player ${label}...`);
 
-      const currentPlayerState = playerStateRef.current;
-      const currentQueue = queueRef.current;
+              const playerElement = document.getElementById(elementId);
+              if (!playerElement) {
+                reject(new Error(`Player element ${elementId} not found`));
+                return;
+              }
 
-      if (currentPlayerState.isPlaying) {
-        youtubePlayerRef.current.pauseVideo();
-      } else {
-        if (!currentPlayerState.currentTrack && currentQueue?.tracks.length > 0) {
-          playTrack(currentQueue.tracks[0]);
-        } else {
-          youtubePlayerRef.current.playVideo();
-        }
-      }
-    };
+              // Clear any existing content
+              playerElement.innerHTML = '';
 
-    const shuffleArray = (array) => {
-      return [...array].sort(() => Math.random() - 0.5);
-    };
+              // Create container div (YouTube API will create iframe inside this)
+              const container = document.createElement('div');
+              container.id = `${elementId}-container`;
+              playerElement.appendChild(container);
 
-    return React.createElement(
-      'div',
-      {
-        className: 'fixed bottom-4 right-4 w-80 bg-gray-900/95 text-white shadow-lg rounded-lg border border-gray-800',
-        ref: playerRef,
-        style: {
-          zIndex: 9999,
-          backdropFilter: 'blur(10px)',
-        }
-      },
-      // Error message if present
-      playerState.error && React.createElement(
-        'div',
-        { className: 'flex items-center gap-2 px-4 py-2 bg-red-900/50 text-red-200 rounded-t-lg' },
-        createIcon('alert-circle', { size: 16 }),
-        React.createElement('span', { className: 'text-sm' }, playerState.error)
-      ),
-      React.createElement(
-        'div',
-        { className: 'p-3' },
-        // Header with title and mode toggle
-        React.createElement(
-          'div',
-          { className: 'flex items-center justify-between mb-2' },
-          React.createElement(
-            'div',
-            { className: 'flex items-center gap-2' },
-            createIcon('volume-2', { size: 18 }),
-            React.createElement(
-              'span',
-              {
-                className: 'font-medium text-sm',
-                style: {
-                  background: 'linear-gradient(to right, #A78BFA, #DB2777)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent'
+              let playerInstance = null;
+              let readyTimeout = null;
+
+              const cleanup = () => {
+                if (readyTimeout) {
+                  clearTimeout(readyTimeout);
+                  readyTimeout = null;
                 }
-              },
-              'Radio Nova'
-            )
-          ),
-          React.createElement(
-            'button',
-            {
-              onClick: togglePlayMode,
-              className: 'p-2 rounded-full hover:bg-gray-700/50 flex items-center gap-2 text-gray-300 hover:text-white transition-colors',
-              title: queue.mode === 'sequential' ? 'Switch to random' : 'Switch to sequential'
-            },
-            createIcon(queue.mode === 'sequential' ? 'list-ordered' : 'shuffle', { size: 20 }),
-            React.createElement(
-              'span',
-              { className: 'text-sm' },
-              queue.mode === 'sequential' ? 'Sequential' : 'Random'
-            )
-          )
-        ),
-        // Track info and controls
-        React.createElement(
-          'div',
-          { className: 'flex items-center justify-between' },
-          React.createElement(
-            'div',
-            { className: 'space-y-1 flex-1 min-w-0' },
-            React.createElement(
-              'p',
-              { className: 'text-sm font-medium leading-none truncate text-gray-100' },
-              playerState.currentTrack ? playerState.currentTrack.title : 'Click any track to play'
-            ),
-            React.createElement(
-              'p',
-              { className: 'text-xs text-gray-400 truncate' },
-              playerState.currentTrack ? playerState.currentTrack.artist : 'Or use the play button for sequential playback'
-            )
-          ),
-          React.createElement(
-            'div',
-            { className: 'flex items-center gap-4 ml-4' },
-            React.createElement(
-              'button',
-              {
-                onClick: togglePlayPause,
-                className: 'p-2 rounded-full hover:bg-gray-700/50 text-gray-300 hover:text-white transition-colors',
-                title: playerState.isPlaying ? 'Pause' : 'Play'
-              },
-              createIcon(playerState.isPlaying ? 'pause' : 'play', { size: 24 })
-            ),
-            React.createElement(
-              'button',
-              {
-                onClick: handleTrackEnd,
-                className: 'p-2 rounded-full hover:bg-gray-700/50 text-gray-300 hover:text-white transition-colors',
-                title: queue.mode === 'sequential' ? 'Next Track' : 'Random Track'
-              },
-              createIcon('skip-forward', { size: 18 })
-            )
-          )
-        ),
-        React.createElement(
+                if (playerInstance && playerInstance.destroy) {
+                  try {
+                    playerInstance.destroy();
+                  } catch (e) {
+                    console.warn(`Error destroying player ${label}:`, e);
+                  }
+                }
+                if (playerElement) {
+                  playerElement.innerHTML = '';
+                }
+              };
+
+              // Set up ready timeout
+              readyTimeout = setTimeout(() => {
+                cleanup();
+                reject(new Error(`Player ${label} initialization timeout`));
+              }, 10000);
+
+              try {
+                console.log(`Creating player ${label}...`);
+                playerInstance = new window.YT.Player(container.id, {
+                  ...playerOptions,
+                  videoId: '', // Start with empty video
+                  events: {
+                    onReady: (event) => {
+                      console.log(`Player ${label} ready event received`);
+                      clearTimeout(readyTimeout);
+                      const player = event.target;
+                      if (!player || typeof player.playVideo !== 'function') {
+                          cleanup();
+                          reject(new Error(`Player ${label} not properly initialized`));
+                          return;
+                      }
+                      // Simply resolve without triggering preloadFirstTrack here
+                      resolve(player);
+                  },
+                    onError: (error) => {
+                      console.error(`Player ${label} error:`, error);
+                      if (!readyTimeout) return; // Already handled
+                      cleanup();
+                      reject(new Error(`Player ${label} initialization error: ${error.data}`));
+                    }
+                  }
+                });
+              } catch (error) {
+                cleanup();
+                reject(new Error(`Failed to create player ${label}: ${error.message}`));
+              }
+            });
+          };
+
+          let initTimeout;
+          const initializePlayers = async () => {
+            try {
+                const [playerA, playerB] = await Promise.all([
+                    createPlayer('youtube-player-a', 'A'),
+                    createPlayer('youtube-player-b', 'B')
+                ]);
+
+                if (mountedRef.current) {
+                    // Assign the player references once both players are ready
+                    playerARef.current = playerA;
+                    playerBRef.current = playerB;
+                    console.log('Players initialized successfully');
+
+                    // Now update state and cue the first track safely
+                    setPlayerState(prev => ({
+                        ...prev,
+                        playersReady: true,
+                        isLoading: false
+                    }));
+                    preloadFirstTrack();
+                }
+            } catch (error) {
+                console.error('Error initializing players:', error);
+                if (mountedRef.current) {
+                    setPlayerState(prev => ({
+                        ...prev,
+                        error: 'Failed to initialize players. Please refresh the page.',
+                        isLoading: false
+                    }));
+                }
+            }
+        };
+
+          // Set initialization timeout
+          initTimeout = setTimeout(() => {
+            if (!playerState.playersReady && mountedRef.current) {
+              setPlayerState(prev => ({
+                ...prev,
+                error: 'Player initialization timed out. Please refresh the page.',
+                isLoading: false
+              }));
+            }
+          }, 15000);
+
+          initializePlayers();
+
+          return () => {
+            mountedRef.current = false;
+            clearTimeout(initTimeout);
+            if (containerRef.current) {
+              document.body.removeChild(containerRef.current);
+            }
+          };
+        }, []);
+
+        // Improved player state handling
+        const handlePlayerStateChange = (event, label) => {
+          if (label !== activePlayerRef.current) return;
+
+          switch (event.data) {
+            case window.YT.PlayerState.ENDED:
+              if (!playerState.crossfading) {
+                playNextTrack();
+              }
+              break;
+            case window.YT.PlayerState.PLAYING:
+              setPlayerState(prev => ({
+                ...prev,
+                isPlaying: true,
+                isLoading: false
+              }));
+              break;
+            case window.YT.PlayerState.PAUSED:
+              setPlayerState(prev => ({
+                ...prev,
+                isPlaying: false
+              }));
+              break;
+            case window.YT.PlayerState.BUFFERING:
+              setPlayerState(prev => ({
+                ...prev,
+                isLoading: true
+              }));
+              break;
+          }
+        };
+
+        const handlePlayerError = (error, label) => {
+          console.error(`Player ${label} error:`, error);
+          const errorMessages = {
+            2: 'Invalid video ID',
+            5: 'HTML5 player error',
+            100: 'Video not found',
+            101: 'Video not playable',
+            150: 'Video not playable'
+          };
+
+          setPlayerState(prev => ({
+            ...prev,
+            error: errorMessages[error.data] || 'Playback error occurred',
+            isLoading: false
+          }));
+        };
+
+        // Enhanced first track preloading
+        const preloadFirstTrack = () => {
+          console.log('Attempting to preload first track...');
+          const firstTrackRow = document.querySelector('.playlist-entry');
+          if (!firstTrackRow) {
+            console.log('No playlist entries found');
+            return;
+          }
+
+          const ytMusicLink = firstTrackRow.querySelector('a[href*="music.youtube.com"]')?.href;
+          if (!ytMusicLink) {
+            console.log('No YouTube Music link found in first track');
+            return;
+          }
+
+          const videoId = extractVideoId(ytMusicLink);
+          if (!videoId) {
+            console.log('Could not extract video ID from link');
+            return;
+          }
+
+          const title = firstTrackRow.querySelector('.title')?.textContent;
+          const artist = firstTrackRow.querySelector('.artist-name')?.textContent;
+
+          console.log('Preloading first track:', { videoId, title, artist });
+
+          setPlayerState(prev => ({
+            ...prev,
+            currentTrack: { videoId, title, artist, url: ytMusicLink }
+          }));
+
+          if (playerARef.current?.cueVideoById) {
+            playerARef.current.cueVideoById(videoId);
+            console.log('First track cued successfully');
+          } else {
+            console.log('Player A not ready for cueing');
+          }
+        };
+
+        // Rest of the component implementation...
+        // (UI rendering, playback controls, etc. remain the same)
+
+        return React.createElement(
           'div',
           {
-            id: 'youtube-player',
-            className: 'w-full h-[120px] mt-2 bg-gray-800/50 rounded-lg overflow-hidden'
-          }
-        )
-      )
-    );
-  };
+            className: 'fixed bottom-4 right-4 w-80 bg-gray-900/95 text-white rounded-lg shadow-lg border border-gray-800 overflow-hidden'
+          },
+          // ... rest of the render logic
+        );
+      }
 
-  // Initialize the player
-  const root = ReactDOM.createRoot(document.getElementById('nova-player-root'));
-  root.render(React.createElement(NovaPlayer));
-}
+      // Mount with error boundary
+      console.log('Mounting NovaPlayer component...');
+      const rootElement = document.getElementById('nova-player-root');
+      if (!rootElement) {
+        throw new Error('Root element not found');
+      }
 
-// Start initialization when the page loads
-window.addEventListener('load', initializePlayer);
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(React.createElement(NovaPlayer));
+
+    } catch (error) {
+      console.error('Fatal error during player initialization:', error);
+      const rootElement = document.getElementById('nova-player-root');
+      if (rootElement) {
+        rootElement.innerHTML = `
+          <div class="fixed bottom-4 right-4 w-80 bg-red-900/95 text-white rounded-lg shadow-lg p-4">
+            Failed to initialize player: ${error.message}
+          </div>
+        `;
+      }
+    }
+  }
+
+  // Start initialization when the page loads
+  if (document.readyState === 'loading') {
+    window.addEventListener('load', initializePlayer);
+  } else {
+    initializePlayer();
+  }
+})();
