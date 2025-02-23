@@ -72,8 +72,9 @@ func main() {
 
 }
 
-// generateYearlyPlaylist aggregates monthly playlists for a given year into a yearly playlist.
-// It sums duplicate track play counts, sorts by play count, and keeps only the top 100 songs.
+// generateYearlyPlaylist aggregates monthly playlists for a given year,
+// sums duplicate track counts, populates missing YT info, sorts by play count,
+// and writes the top 100 tracks to a yearly HTML page named "<year>.html".
 func generateYearlyPlaylist(year int, monthlyPlaylists []*nova.Playlist) {
 	// Aggregate tracks by key.
 	trackMap := make(map[string]*nova.Track)
@@ -86,22 +87,25 @@ func generateYearlyPlaylist(year int, monthlyPlaylists []*nova.Playlist) {
 			if existing, ok := trackMap[key]; ok {
 				existing.Count += t.Count
 			} else {
+				// Copy available info, including any YTMusicInfo if present.
 				trackMap[key] = &nova.Track{
-					Artist:     t.Artist,
-					Title:      t.Title,
-					ImgURL:     t.ImgURL,
-					SpotifyURL: t.SpotifyURL,
-					Count:      t.Count,
+					Artist:      t.Artist,
+					Title:       t.Title,
+					ImgURL:      t.ImgURL,
+					SpotifyURL:  t.SpotifyURL,
+					Count:       t.Count,
+					YTMusicInfo: t.YTMusicInfo,
 				}
 			}
 		}
 	}
-	// Convert the map into a slice.
+
+	// Convert the map to a slice.
 	var aggregatedTracks []*nova.Track
 	for _, t := range trackMap {
 		aggregatedTracks = append(aggregatedTracks, t)
 	}
-	// Sort tracks by play count in descending order.
+	// Sort tracks by play count descending.
 	sort.Slice(aggregatedTracks, func(i, j int) bool {
 		return aggregatedTracks[i].Count > aggregatedTracks[j].Count
 	})
@@ -109,12 +113,19 @@ func generateYearlyPlaylist(year int, monthlyPlaylists []*nova.Playlist) {
 	if len(aggregatedTracks) > 100 {
 		aggregatedTracks = aggregatedTracks[:100]
 	}
+
 	// Create the yearly playlist.
 	yearlyPlaylist := &nova.Playlist{
 		Tracks: aggregatedTracks,
 		Year:   year,
 		Name:   strconv.Itoa(year),
 	}
+
+	// Populate YouTube info for each track (if missing).
+	if err := yearlyPlaylist.PopulateYTIDs(); err != nil {
+		log.Println("Error populating YT info for yearly playlist:", err)
+	}
+
 	// Generate the HTML page using the existing template.
 	htmlData, err := yearlyPlaylist.ToHTML()
 	if err != nil {
