@@ -295,14 +295,14 @@ var HTMLIndexTmpl = `
 <body>
 	<h1>Radio Nova - Playlists</h1>
 	<h2>Yearly Playlists</h2>
-	<ul id="yearly-playlists">
+	<ul class="playlists">
 		{{range .YearLinks}}
 			<li class="playlist"><a href="{{.Filename}}">{{.Year}}</a></li>
 		{{end}}
 	</ul>
 	<h2>Monthly Playlists</h2>
-	<ul id="monthly-playlists">
-		{{range $index, $track := .PlaylistFiles}}
+	<ul class="playlists">
+		{{range .PlaylistFiles}}
 			<li class="playlist" data-featured="{{.FeaturedText}}">
 				<a href="{{.Path}}"><img src="{{.ThumbnailURL}}" class="artwork" alt="{{.FeaturedText}}"/>{{.Title}}</a>
 			</li>

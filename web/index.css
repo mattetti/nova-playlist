@@ -39,6 +39,14 @@ h2 {
   padding: 0;
 }
 
+ul.playlists {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  list-style: none;
+  padding: 0;
+}
+
 .playlist {
   width: 225px;
   margin: 20px;
