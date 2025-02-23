@@ -273,8 +273,14 @@ func (p *PlaylistFile) Title() string {
 	return nova.MonthEnglishName(time.Month(p.Month)) + " " + strconv.Itoa(p.Year)
 }
 
+type YearLink struct {
+	Year     int
+	Filename string
+}
+
 type Index struct {
 	PlaylistFiles []*PlaylistFile
+	YearLinks     []*YearLink
 	Playlists     map[*nova.Playlist]string
 }
 
@@ -288,50 +294,73 @@ var HTMLIndexTmpl = `
 </head>
 <body>
 	<h1>Radio Nova - Playlists</h1>
-	<h2><a href="https://nova.fr" target="_blank">Radio Nova</a>'s monthly rotation playlists</h2>
-		<ul id="playlists">
+	<h2>Yearly Playlists</h2>
+	<ul id="yearly-playlists">
+		{{range .YearLinks}}
+			<li class="playlist"><a href="{{.Filename}}">{{.Year}}</a></li>
+		{{end}}
+	</ul>
+	<h2>Monthly Playlists</h2>
+	<ul id="monthly-playlists">
 		{{range $index, $track := .PlaylistFiles}}
 			<li class="playlist" data-featured="{{.FeaturedText}}">
-			<a href="{{.Path}}"><img src="{{.ThumbnailURL}}" class="artwork" alt="{{.FeaturedText}}"/>{{.Title}}</a></li>
+				<a href="{{.Path}}"><img src="{{.ThumbnailURL}}" class="artwork" alt="{{.FeaturedText}}"/>{{.Title}}</a>
+			</li>
 		{{end}}
-		</ul>
+	</ul>
 </body>
 </html>
 `
 
 func (idx *Index) ToHTML() ([]byte, error) {
-	t, err := template.New("playlist").Funcs(template.FuncMap{}).Parse(HTMLIndexTmpl)
+	t, err := template.New("index").Parse(HTMLIndexTmpl)
 	if err != nil {
 		return nil, err
 	}
-
 	var buf bytes.Buffer
 	err = t.Execute(&buf, idx)
 	if err != nil {
 		return nil, err
 	}
-
 	return buf.Bytes(), nil
 }
 
 func (idx *Index) SaveToDisk() error {
-
+	// Populate monthly playlist files.
 	for playlist, path := range idx.Playlists {
-		PlaylistFile := &PlaylistFile{
+		pf := &PlaylistFile{
 			Year:         playlist.Year,
 			Month:        playlist.Month,
 			Path:         path,
 			ThumbnailURL: playlist.Tracks[0].ThumbURL(),
 			FeaturedText: fmt.Sprintf("Top track: %s by %s", playlist.Tracks[0].Title, playlist.Tracks[0].Artist),
 		}
-		idx.PlaylistFiles = append(idx.PlaylistFiles, PlaylistFile)
+		idx.PlaylistFiles = append(idx.PlaylistFiles, pf)
 	}
 
+	// Sort monthly playlists descending by year then month.
 	sort.Slice(idx.PlaylistFiles, func(i, j int) bool {
 		if idx.PlaylistFiles[i].Year == idx.PlaylistFiles[j].Year {
 			return idx.PlaylistFiles[i].Month > idx.PlaylistFiles[j].Month
 		}
 		return idx.PlaylistFiles[i].Year > idx.PlaylistFiles[j].Year
+	})
+
+	// Create year links by extracting unique years from the monthly playlists.
+	yearMap := make(map[int]string)
+	for playlist := range idx.Playlists {
+		// Assuming your yearly files are named "<year>.html"
+		yearMap[playlist.Year] = fmt.Sprintf("%d.html", playlist.Year)
+	}
+	for yr, filename := range yearMap {
+		idx.YearLinks = append(idx.YearLinks, &YearLink{
+			Year:     yr,
+			Filename: filename,
+		})
+	}
+	// Sort year links in descending order.
+	sort.Slice(idx.YearLinks, func(i, j int) bool {
+		return idx.YearLinks[i].Year > idx.YearLinks[j].Year
 	})
 
 	html, err := idx.ToHTML()
