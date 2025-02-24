@@ -126,11 +126,10 @@ async function initializePlayer() {
             },
             onError: (ev) => {
               console.error("Deck A error:", ev.data);
-              // If the active deck errors, skip the track
+              // Replace the bad YouTube link immediately so we don't crossfade back to it.
               if (activeDeckRef.current === 'A' && !isCrossfading) {
-                startCrossfade();
+                handleBadTrack('A');
               } else {
-                // For an inactive deck error, clear its track so it reloads next time
                 setTrackA(null);
               }
             }
@@ -178,7 +177,7 @@ async function initializePlayer() {
             onError: (ev) => {
               console.error("Deck B error:", ev.data);
               if (activeDeckRef.current === 'B' && !isCrossfading) {
-                startCrossfade();
+                handleBadTrack('B');
               } else {
                 setTrackB(null);
               }
@@ -197,6 +196,20 @@ async function initializePlayer() {
         };
       }
     }, []);
+
+    // Helper function to remove a bad track immediately.
+    function handleBadTrack(deck) {
+      if (deck === 'A' && trackA) {
+        const badVideoId = trackA.videoId;
+        setQueue(prevQueue => prevQueue.filter(track => track.videoId !== badVideoId));
+        // Trigger crossfade to skip this track.
+        startCrossfade();
+      } else if (deck === 'B' && trackB) {
+        const badVideoId = trackB.videoId;
+        setQueue(prevQueue => prevQueue.filter(track => track.videoId !== badVideoId));
+        startCrossfade();
+      }
+    }
 
     // 3) Update deck A when trackA changes (only if player A is ready)
     useEffect(() => {
@@ -246,9 +259,10 @@ async function initializePlayer() {
       return () => clearInterval(checkInterval);
     }, [isCrossfading, trackA, trackB]);
 
-    // 6) Handle row clicks by extracting track info from the row DOM
+    // 6) Handle row clicks by extracting track info from the row DOM.
+    // Updated to check if the clicked element or one of its ancestors is an anchor.
     function handleRowClick(e) {
-      if (e.target.tagName.toLowerCase() === 'a') return;
+      if (e.target.closest && e.target.closest('a')) return;
       e.preventDefault();
 
       const row = e.currentTarget;
