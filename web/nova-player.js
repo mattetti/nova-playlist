@@ -224,10 +224,19 @@ async function initializePlayer() {
           }
       }
 
-      // 7) Crossfade from the active deck to the inactive deck
+      // 7) Crossfade from the active deck to the inactive deck.
+      // Before starting the fade, we force the inactive deck to start playing.
       function startCrossfade() {
           if (isCrossfading) return;
           setIsCrossfading(true);
+
+          // Force the inactive deck to start playback immediately
+          if (activeDeck === 'A' && trackB && youtubePlayerBRef.current && typeof youtubePlayerBRef.current.loadVideoById === 'function') {
+              youtubePlayerBRef.current.loadVideoById(trackB.videoId);
+          } else if (activeDeck === 'B' && trackA && youtubePlayerARef.current && typeof youtubePlayerARef.current.loadVideoById === 'function') {
+              youtubePlayerARef.current.loadVideoById(trackA.videoId);
+          }
+
           const duration = 3000; // crossfade duration in ms
           const steps = 30;
           let stepCount = 0;
