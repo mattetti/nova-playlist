@@ -41,6 +41,9 @@ async function initializePlayer() {
       const [trackA, setTrackA] = useState(null);
       const [trackB, setTrackB] = useState(null);
 
+      // Flag to prevent multiple crossfades at once
+      const [isCrossfading, setIsCrossfading] = useState(false);
+
       // 1) Load tracks from .playlist-entry and attach click listeners
       useEffect(() => {
           const entries = document.querySelectorAll('.playlist-entry');
@@ -90,8 +93,8 @@ async function initializePlayer() {
                           }
                       },
                       onStateChange: (ev) => {
-                          // When deck A ends, crossfade to deck B
-                          if (ev.data === YT.PlayerState.ENDED && activeDeck === 'A' && trackB) {
+                          // When deck A ends, if not already crossfading, trigger crossfade
+                          if (ev.data === YT.PlayerState.ENDED && activeDeck === 'A' && trackB && !isCrossfading) {
                               startCrossfade();
                           }
                       }
@@ -149,7 +152,27 @@ async function initializePlayer() {
           }
       }, [trackB]);
 
-      // 5) Handle row clicks by extracting track info from the row DOM
+      // 5) Use an interval to check if the active deck is 3s from the end
+      useEffect(() => {
+          const checkInterval = setInterval(() => {
+              if (isCrossfading) return;
+              const player = activeDeck === 'A' ? youtubePlayerARef.current : youtubePlayerBRef.current;
+              if (
+                  player &&
+                  typeof player.getCurrentTime === 'function' &&
+                  typeof player.getDuration === 'function'
+              ) {
+                  const currentTime = player.getCurrentTime();
+                  const duration = player.getDuration();
+                  if (duration > 0 && (duration - currentTime <= 3)) {
+                      startCrossfade();
+                  }
+              }
+          }, 1000);
+          return () => clearInterval(checkInterval);
+      }, [activeDeck, isCrossfading, trackA, trackB]);
+
+      // 6) Handle row clicks by extracting track info from the row DOM
       function handleRowClick(e) {
           // Ignore clicks on actual <a> links
           if (e.target.tagName.toLowerCase() === 'a') return;
@@ -191,8 +214,10 @@ async function initializePlayer() {
           }
       }
 
-      // 6) Crossfade from the active deck to the inactive deck
+      // 7) Crossfade from the active deck to the inactive deck
       function startCrossfade() {
+          if (isCrossfading) return;
+          setIsCrossfading(true);
           const duration = 3000; // total crossfade duration in ms
           const steps = 30;
           let stepCount = 0;
@@ -221,7 +246,7 @@ async function initializePlayer() {
           }, duration / steps);
       }
 
-      // 7) Cleanup after crossfade: stop the old deck and swap active deck
+      // 8) Cleanup after crossfade: stop the old deck, swap active deck, and reset the crossfade flag
       function finishCrossfade() {
           if (activeDeck === 'A') {
               if (youtubePlayerARef.current) youtubePlayerARef.current.stopVideo();
@@ -257,9 +282,11 @@ async function initializePlayer() {
                   return newIndex;
               });
           }
+          setIsCrossfading(false);
       }
 
-      // Render the component with a floating container that passes through pointer events
+      // Render the component with a floating container that passes through pointer events.
+      // Also, add onClick handlers on the deck areas: if you click on the non-active deck's player, trigger crossfade.
       return React.createElement(
           'div',
           {
@@ -274,13 +301,18 @@ async function initializePlayer() {
                   padding: '0 40px',
                   zIndex: 9999,
                   backgroundColor: 'transparent',
-                  pointerEvents: 'none' // Allow clicks outside child elements to pass through
+                  pointerEvents: 'none'
               }
           },
-          // Deck A container (pointer events enabled)
+          // Deck A container with onClick to trigger crossfade if deck A is non-active
           React.createElement(
               'div',
-              { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', pointerEvents: 'auto' } },
+              {
+                  onClick: () => {
+                      if (activeDeck !== 'A' && trackA) startCrossfade();
+                  },
+                  style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', pointerEvents: 'auto' }
+              },
               React.createElement('h3', null, 'Deck A'),
               React.createElement('div', {
                   id: 'youtube-player-A',
@@ -289,10 +321,15 @@ async function initializePlayer() {
               trackA && React.createElement('p', null, trackA.title),
               React.createElement('p', { style: { fontSize: '0.8em', opacity: 0.7 } }, `Volume: ${volumeA}`)
           ),
-          // Deck B container (pointer events enabled)
+          // Deck B container with onClick to trigger crossfade if deck B is non-active
           React.createElement(
               'div',
-              { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', pointerEvents: 'auto' } },
+              {
+                  onClick: () => {
+                      if (activeDeck !== 'B' && trackB) startCrossfade();
+                  },
+                  style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', pointerEvents: 'auto' }
+              },
               React.createElement('h3', null, 'Deck B'),
               React.createElement('div', {
                   id: 'youtube-player-B',
