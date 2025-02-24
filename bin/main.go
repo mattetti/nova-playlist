@@ -109,10 +109,11 @@ func generateYearlyPlaylist(year int, monthlyPlaylists []*nova.Playlist) {
 	sort.Slice(aggregatedTracks, func(i, j int) bool {
 		return aggregatedTracks[i].Count > aggregatedTracks[j].Count
 	})
-	// Keep only the top 100 tracks.
-	if len(aggregatedTracks) > 100 {
-		aggregatedTracks = aggregatedTracks[:100]
-	}
+
+	// // Keep only the top 100 tracks.
+	// if len(aggregatedTracks) > 100 {
+	// 	aggregatedTracks = aggregatedTracks[:100]
+	// }
 
 	// Create the yearly playlist.
 	yearlyPlaylist := &nova.Playlist{
@@ -137,6 +138,63 @@ func generateYearlyPlaylist(year int, monthlyPlaylists []*nova.Playlist) {
 		log.Fatal("Error writing yearly HTML file:", err)
 	}
 	fmt.Println("Generated yearly playlist HTML:", filename)
+}
+
+// generateAllTimePlaylist aggregates tracks from all playlists (all years)
+// without limiting the number of entries.
+func generateAllTimePlaylist(monthlyPlaylists []*nova.Playlist) {
+	// Aggregate all tracks regardless of year.
+	trackMap := make(map[string]*nova.Track)
+	for _, pl := range monthlyPlaylists {
+		for _, t := range pl.Tracks {
+			key := t.Key()
+			if existing, ok := trackMap[key]; ok {
+				existing.Count += t.Count
+			} else {
+				trackMap[key] = &nova.Track{
+					Artist:      t.Artist,
+					Title:       t.Title,
+					ImgURL:      t.ImgURL,
+					SpotifyURL:  t.SpotifyURL,
+					Count:       t.Count,
+					YTMusicInfo: t.YTMusicInfo,
+				}
+			}
+		}
+	}
+
+	var aggregatedTracks []*nova.Track
+	for _, t := range trackMap {
+		aggregatedTracks = append(aggregatedTracks, t)
+	}
+
+	// Sort tracks by play count descending.
+	sort.Slice(aggregatedTracks, func(i, j int) bool {
+		return aggregatedTracks[i].Count > aggregatedTracks[j].Count
+	})
+
+	// Create the All Times playlist (using Year==0 as a special marker).
+	allTimesPlaylist := &nova.Playlist{
+		Tracks: aggregatedTracks,
+		Year:   0,
+		Name:   "All Times",
+	}
+
+	// Populate YouTube info.
+	if err := allTimesPlaylist.PopulateYTIDs(); err != nil {
+		log.Println("Error populating YT info for All Times playlist:", err)
+	}
+
+	// Generate the HTML page.
+	htmlData, err := allTimesPlaylist.ToHTML()
+	if err != nil {
+		log.Fatal("Error generating All Times HTML:", err)
+	}
+	filename := filepath.Join("web", "AllTimes.html")
+	if err := os.WriteFile(filename, htmlData, os.ModePerm); err != nil {
+		log.Fatal("Error writing All Times HTML file:", err)
+	}
+	fmt.Println("Generated All Times playlist HTML:", filename)
 }
 
 func execute(month int, year int, shouldGenerate bool) {
@@ -244,6 +302,8 @@ func execute(month int, year int, shouldGenerate bool) {
 			log.Fatal(err)
 		}
 
+		generateAllTimePlaylist(playlists)
+
 		// Aggregate monthly playlists into yearly playlists.
 		yearSet := make(map[int]bool)
 		for _, pl := range playlists {
@@ -286,6 +346,7 @@ func (p *PlaylistFile) Title() string {
 
 type YearLink struct {
 	Year     int
+	Name     string
 	Filename string
 }
 
@@ -308,7 +369,7 @@ var HTMLIndexTmpl = `
 	<h2>Yearly Playlists</h2>
 	<ul class="playlists">
 		{{range .YearLinks}}
-			<li class="playlist"><a href="{{.Filename}}">{{.Year}}</a></li>
+			<li class="playlist"><a href="{{.Filename}}">{{if .Name}}{{.Name}}{{else}}{{.Year}}{{end}}</a></li>
 		{{end}}
 	</ul>
 	<h2>Monthly Playlists</h2>
@@ -369,6 +430,14 @@ func (idx *Index) SaveToDisk() error {
 			Filename: filename,
 		})
 	}
+
+	// Add the All Times link.
+	idx.YearLinks = append(idx.YearLinks, &YearLink{
+		Year:     0,
+		Name:     "All Times",
+		Filename: "AllTimes.html",
+	})
+
 	// Sort year links in descending order.
 	sort.Slice(idx.YearLinks, func(i, j int) bool {
 		return idx.YearLinks[i].Year > idx.YearLinks[j].Year
