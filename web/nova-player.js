@@ -126,7 +126,7 @@ async function initializePlayer() {
             },
             onError: (ev) => {
               console.error("Deck A error:", ev.data);
-              // Replace the bad YouTube link immediately so we don't crossfade back to it.
+              // On error, unload deck A and transition immediately
               if (activeDeckRef.current === 'A' && !isCrossfading) {
                 handleBadTrack('A');
               } else {
@@ -197,18 +197,70 @@ async function initializePlayer() {
       }
     }, []);
 
-    // Helper function to remove a bad track immediately.
+    // Helper function to handle a bad track due to player error.
     function handleBadTrack(deck) {
       if (deck === 'A' && trackA) {
         const badVideoId = trackA.videoId;
+        // Remove the bad track from the playlist.
         setQueue(prevQueue => prevQueue.filter(track => track.videoId !== badVideoId));
-        // Trigger crossfade to skip this track.
-        startCrossfade();
+        if (youtubePlayerARef.current) {
+          youtubePlayerARef.current.stopVideo();
+        }
+        // Immediately transition from deck A to deck B.
+        finishErrorTransition('A', 'B');
       } else if (deck === 'B' && trackB) {
         const badVideoId = trackB.videoId;
         setQueue(prevQueue => prevQueue.filter(track => track.videoId !== badVideoId));
-        startCrossfade();
+        if (youtubePlayerBRef.current) {
+          youtubePlayerBRef.current.stopVideo();
+        }
+        finishErrorTransition('B', 'A');
       }
+    }
+
+    // This function immediately transitions from the errored deck (oldActive)
+    // to the other deck (newActive) without any fade animation.
+    function finishErrorTransition(oldActive, newActive) {
+      if (oldActive === 'A') {
+        setActiveDeck('B');
+        setVolumeA(0);
+        setVolumeB(100);
+        setCurrentIndex(idx => {
+          if (shuffle) {
+            let newIndex = Math.floor(Math.random() * queue.length);
+            if (queue.length > 1 && newIndex === idx) {
+              newIndex = (newIndex + 1) % queue.length;
+            }
+            setTrackA(queue[newIndex]);
+            return newIndex;
+          } else {
+            const newIndex = idx + 1;
+            const nextTrack = queue[newIndex + 1];
+            setTrackA(nextTrack ? nextTrack : null);
+            return newIndex;
+          }
+        });
+      } else {
+        setActiveDeck('A');
+        setVolumeB(0);
+        setVolumeA(100);
+        setCurrentIndex(idx => {
+          if (shuffle) {
+            let newIndex = Math.floor(Math.random() * queue.length);
+            if (queue.length > 1 && newIndex === idx) {
+              newIndex = (newIndex + 1) % queue.length;
+            }
+            setTrackB(queue[newIndex]);
+            return newIndex;
+          } else {
+            const newIndex = idx + 1;
+            const nextTrack = queue[newIndex + 1];
+            setTrackB(nextTrack ? nextTrack : null);
+            return newIndex;
+          }
+        });
+      }
+      setIsCrossfading(false);
     }
 
     // 3) Update deck A when trackA changes (only if player A is ready)
