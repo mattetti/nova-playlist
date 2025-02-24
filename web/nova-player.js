@@ -123,6 +123,16 @@ async function initializePlayer() {
                   !isCrossfading) {
                 startCrossfade();
               }
+            },
+            onError: (ev) => {
+              console.error("Deck A error:", ev.data);
+              // If the active deck errors, skip the track
+              if (activeDeckRef.current === 'A' && !isCrossfading) {
+                startCrossfade();
+              } else {
+                // For an inactive deck error, clear its track so it reloads next time
+                setTrackA(null);
+              }
             }
           }
         });
@@ -163,6 +173,14 @@ async function initializePlayer() {
                   trackA &&
                   !isCrossfading) {
                 startCrossfade();
+              }
+            },
+            onError: (ev) => {
+              console.error("Deck B error:", ev.data);
+              if (activeDeckRef.current === 'B' && !isCrossfading) {
+                startCrossfade();
+              } else {
+                setTrackB(null);
               }
             }
           }
@@ -361,6 +379,35 @@ async function initializePlayer() {
       }
       setIsCrossfading(false);
     }
+
+    // 9) When shuffle mode changes, automatically reset the decks.
+    useEffect(() => {
+      if (queue.length === 0) return;
+      if (shuffle) {
+        // For shuffle mode, randomly select new tracks for both decks.
+        const randomIndexA = Math.floor(Math.random() * queue.length);
+        let randomIndexB = Math.floor(Math.random() * queue.length);
+        if (queue.length > 1 && randomIndexB === randomIndexA) {
+          randomIndexB = (randomIndexB + 1) % queue.length;
+        }
+        if (activeDeck === 'A') {
+          setTrackA(queue[randomIndexA]);
+          setTrackB(queue[randomIndexB]);
+          setCurrentIndex(randomIndexA);
+        } else {
+          setTrackB(queue[randomIndexA]);
+          setTrackA(queue[randomIndexB]);
+          setCurrentIndex(randomIndexA);
+        }
+      } else {
+        // For sequential mode, keep the active track and load the next track in the inactive deck.
+        if (activeDeck === 'A') {
+          setTrackB(queue[currentIndex + 1] || null);
+        } else {
+          setTrackA(queue[currentIndex + 1] || null);
+        }
+      }
+    }, [shuffle]);
 
     // Render the floating container, deck areas, and control buttons.
     return React.createElement(
