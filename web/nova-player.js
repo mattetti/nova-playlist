@@ -106,7 +106,7 @@ async function initializePlayer() {
                               }
                               setActiveDeck('A');
                               setVolumeA(100);
-                              setVolumeB(0);
+                              setVolumeB(100);
                           }
                           // When deck A ends while active, trigger crossfade if trackB exists
                           if (ev.data === YT.PlayerState.ENDED &&
