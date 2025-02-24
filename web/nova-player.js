@@ -26,12 +26,11 @@ async function initializePlayer() {
       const youtubePlayerARef = useRef(null);
       const youtubePlayerBRef = useRef(null);
 
-      // Playlist queue loaded from the DOM (for preloading purposes)
+      // Playlist queue loaded from the DOM (for preloading)
       const [queue, setQueue] = useState([]);
       const [currentIndex, setCurrentIndex] = useState(0);
       // Which deck is active: 'A' or 'B'
       const [activeDeck, setActiveDeck] = useState('A');
-      // Maintain an up-to-date ref for activeDeck (to avoid stale closures)
       const activeDeckRef = useRef(activeDeck);
       useEffect(() => {
           activeDeckRef.current = activeDeck;
@@ -47,6 +46,10 @@ async function initializePlayer() {
 
       // Flag to prevent multiple crossfades at once
       const [isCrossfading, setIsCrossfading] = useState(false);
+
+      // Flags for player readiness
+      const [playerAReady, setPlayerAReady] = useState(false);
+      const [playerBReady, setPlayerBReady] = useState(false);
 
       // 1) Load tracks from .playlist-entry and attach click listeners
       useEffect(() => {
@@ -69,11 +72,9 @@ async function initializePlayer() {
           if (loaded[0]) setTrackA(loaded[0]);
           if (loaded[1]) setTrackB(loaded[1]);
 
-          // Attach click listeners directly to each row
           entries.forEach(row => {
               row.addEventListener('click', handleRowClick);
           });
-          // Cleanup listeners on unmount
           return () => {
               entries.forEach(row => {
                   row.removeEventListener('click', handleRowClick);
@@ -91,13 +92,14 @@ async function initializePlayer() {
                   playerVars: { controls: 1 },
                   events: {
                       onReady: (ev) => {
+                          setPlayerAReady(true);
                           ev.target.setVolume(volumeA);
                           if (trackA?.videoId && typeof ev.target.cueVideoById === 'function') {
                               ev.target.cueVideoById(trackA.videoId);
                           }
                       },
                       onStateChange: (ev) => {
-                          // If deck A (inactive) unexpectedly starts playing, override active deck
+                          // If deck A (inactive) unexpectedly starts playing, switch active deck
                           if (ev.data === YT.PlayerState.PLAYING &&
                               activeDeckRef.current !== 'A' &&
                               !isCrossfading) {
@@ -106,7 +108,10 @@ async function initializePlayer() {
                               }
                               setActiveDeck('A');
                               setVolumeA(100);
-                              setVolumeB(100);
+                              if (youtubePlayerARef.current) {
+                                  youtubePlayerARef.current.setVolume(100);
+                              }
+                              setVolumeB(0);
                           }
                           // When deck A ends while active, trigger crossfade if trackB exists
                           if (ev.data === YT.PlayerState.ENDED &&
@@ -128,13 +133,14 @@ async function initializePlayer() {
                   playerVars: { controls: 1 },
                   events: {
                       onReady: (ev) => {
+                          setPlayerBReady(true);
                           ev.target.setVolume(volumeB);
                           if (trackB?.videoId && typeof ev.target.cueVideoById === 'function') {
                               ev.target.cueVideoById(trackB.videoId);
                           }
                       },
                       onStateChange: (ev) => {
-                          // If deck B (inactive) unexpectedly starts playing, override active deck
+                          // If deck B (inactive) unexpectedly starts playing, switch active deck and ensure volume is set
                           if (ev.data === YT.PlayerState.PLAYING &&
                               activeDeckRef.current !== 'B' &&
                               !isCrossfading) {
@@ -143,6 +149,9 @@ async function initializePlayer() {
                               }
                               setActiveDeck('B');
                               setVolumeB(100);
+                              if (youtubePlayerBRef.current) {
+                                  youtubePlayerBRef.current.setVolume(100);
+                              }
                               setVolumeA(0);
                           }
                           // When deck B ends while active, trigger crossfade if trackA exists
@@ -166,12 +175,11 @@ async function initializePlayer() {
                   initDeckB();
               };
           }
-      }, []); // One-time initialization
+      }, []);
 
-      // 3) Update deck A when trackA changes.
-      // If deck A is active, load and play; otherwise, cue the video.
+      // 3) Update deck A when trackA changes (only if player A is ready)
       useEffect(() => {
-          if (youtubePlayerARef.current && trackA?.videoId) {
+          if (playerAReady && youtubePlayerARef.current && trackA?.videoId) {
               if (activeDeckRef.current === 'A') {
                   if (typeof youtubePlayerARef.current.loadVideoById === 'function') {
                       youtubePlayerARef.current.loadVideoById(trackA.videoId);
@@ -182,12 +190,11 @@ async function initializePlayer() {
                   }
               }
           }
-      }, [trackA]);
+      }, [trackA, playerAReady]);
 
-      // 4) Update deck B when trackB changes.
-      // If deck B is active, load and play; otherwise, cue the video.
+      // 4) Update deck B when trackB changes (only if player B is ready)
       useEffect(() => {
-          if (youtubePlayerBRef.current && trackB?.videoId) {
+          if (playerBReady && youtubePlayerBRef.current && trackB?.videoId) {
               if (activeDeckRef.current === 'B') {
                   if (typeof youtubePlayerBRef.current.loadVideoById === 'function') {
                       youtubePlayerBRef.current.loadVideoById(trackB.videoId);
@@ -198,7 +205,7 @@ async function initializePlayer() {
                   }
               }
           }
-      }, [trackB]);
+      }, [trackB, playerBReady]);
 
       // 5) Check every second if active deck is within 3 seconds of track end
       useEffect(() => {
@@ -235,7 +242,7 @@ async function initializePlayer() {
           if (!videoId) return;
           const clickedTrack = { title, artist, videoId };
 
-          // Use the up-to-date activeDeckRef to decide which deck to update
+          // Load the clicked track into the active deck
           if (activeDeckRef.current === 'A') {
               setTrackA(clickedTrack);
           } else {
@@ -260,12 +267,11 @@ async function initializePlayer() {
       }
 
       // 7) Crossfade from the active deck to the inactive deck.
-      // Before starting the fade, force the inactive deck to start playback.
+      // Force the inactive deck to start playback immediately.
       function startCrossfade() {
           if (isCrossfading) return;
           setIsCrossfading(true);
 
-          // Force the inactive deck to start playback immediately
           if (activeDeckRef.current === 'A' && trackB && youtubePlayerBRef.current &&
               typeof youtubePlayerBRef.current.loadVideoById === 'function') {
               youtubePlayerBRef.current.loadVideoById(trackB.videoId);
@@ -302,14 +308,14 @@ async function initializePlayer() {
           }, duration / steps);
       }
 
-      // 8) Cleanup after crossfade: stop the fading deck, swap active deck, and preload the next track (cue it so it doesn't auto-play)
+      // 8) Cleanup after crossfade: stop the fading deck, swap active deck,
+      // and preload the next track (cue it so it doesn't auto-play)
       function finishCrossfade() {
           if (activeDeckRef.current === 'A') {
               if (youtubePlayerARef.current) youtubePlayerARef.current.stopVideo();
               setActiveDeck('B');
               setVolumeA(0);
               setVolumeB(100);
-
               setCurrentIndex(idx => {
                   const newIndex = idx + 1;
                   const nextTrack = queue[newIndex + 1];
@@ -325,7 +331,6 @@ async function initializePlayer() {
               setActiveDeck('A');
               setVolumeB(0);
               setVolumeA(100);
-
               setCurrentIndex(idx => {
                   const newIndex = idx + 1;
                   const nextTrack = queue[newIndex + 1];
@@ -340,8 +345,7 @@ async function initializePlayer() {
           setIsCrossfading(false);
       }
 
-      // Render the component with a floating container that passes through pointer events.
-      // Also, clicking on a non-active deck triggers crossfade.
+      // Render the floating container and deck areas.
       return React.createElement(
           'div',
           {
