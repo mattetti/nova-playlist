@@ -347,57 +347,68 @@ async function initializePlayer() {
 
       // Render the floating container and deck areas.
       return React.createElement(
-          'div',
-          {
-              style: {
-                  position: 'fixed',
-                  bottom: '20px',
-                  left: 0,
-                  right: 0,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '0 40px',
-                  zIndex: 9999,
-                  backgroundColor: 'transparent',
-                  pointerEvents: 'none'
-              }
-          },
-          // Deck A container
-          React.createElement(
-              'div',
-              {
-                  onClick: () => {
-                      if (activeDeckRef.current !== 'A' && trackA) startCrossfade();
-                  },
-                  style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', pointerEvents: 'auto' }
-              },
-              React.createElement('h3', null, 'Deck A'),
-              React.createElement('div', {
-                  id: 'youtube-player-A',
-                  style: { border: '1px solid #fff', width: '320px', height: '180px' }
-              }),
-              trackA && React.createElement('p', null, trackA.title),
-              React.createElement('p', { style: { fontSize: '0.8em', opacity: 0.7 } }, `Volume: ${volumeA}`)
-          ),
-          // Deck B container
-          React.createElement(
-              'div',
-              {
-                  onClick: () => {
-                      if (activeDeckRef.current !== 'B' && trackB) startCrossfade();
-                  },
-                  style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', pointerEvents: 'auto' }
-              },
-              React.createElement('h3', null, 'Deck B'),
-              React.createElement('div', {
-                  id: 'youtube-player-B',
-                  style: { border: '1px solid #fff', width: '320px', height: '180px' }
-              }),
-              trackB && React.createElement('p', null, trackB.title),
-              React.createElement('p', { style: { fontSize: '0.8em', opacity: 0.7 } }, `Volume: ${volumeB}`)
-          )
-      );
+        'div',
+        {
+            style: {
+                position: 'fixed',
+                bottom: '20px',
+                left: 0,
+                right: 0,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '0 40px',
+                zIndex: 9999,
+                backgroundColor: 'transparent',
+                pointerEvents: 'none'
+            }
+        },
+        // Deck A container
+        React.createElement(
+            'div',
+            {
+                onClick: () => {
+                    if (activeDeck !== 'A' && trackA) startCrossfade();
+                },
+                style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', pointerEvents: 'auto' }
+            },
+            // Change label based on activeDeck state
+            React.createElement('h3', null, activeDeck === 'A' ? 'Playing' : 'Next'),
+            React.createElement('div', {
+                id: 'youtube-player-A',
+                style: { border: '1px solid #fff', width: '320px', height: '180px' }
+            }),
+            trackA && React.createElement('p', null, trackA.title),
+            React.createElement('p', { style: { fontSize: '0.8em', opacity: 0.7 } }, `Volume: ${volumeA}`)
+        ),
+        // X-Fade button placed in the middle
+        React.createElement(
+            'button',
+            {
+                onClick: startCrossfade,
+                style: { pointerEvents: 'auto', margin: '0 20px', padding: '10px 15px', fontSize: '1em' }
+            },
+            'X-Fade'
+        ),
+        // Deck B container
+        React.createElement(
+            'div',
+            {
+                onClick: () => {
+                    if (activeDeck !== 'B' && trackB) startCrossfade();
+                },
+                style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', pointerEvents: 'auto' }
+            },
+            // Change label based on activeDeck state
+            React.createElement('h3', null, activeDeck === 'B' ? 'Playing' : 'Next'),
+            React.createElement('div', {
+                id: 'youtube-player-B',
+                style: { border: '1px solid #fff', width: '320px', height: '180px' }
+            }),
+            trackB && React.createElement('p', null, trackB.title),
+            React.createElement('p', { style: { fontSize: '0.8em', opacity: 0.7 } }, `Volume: ${volumeB}`)
+        )
+    );
   }
 
   const root = ReactDOM.createRoot(document.getElementById('nova-player-root'));
