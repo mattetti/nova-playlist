@@ -14,7 +14,6 @@ function waitForLibraries() {
 
 async function initializePlayer() {
   await waitForLibraries();
-
   const { useState, useEffect, useRef } = React;
 
   // Helper: Extract videoId from a YouTube Music URL
@@ -32,6 +31,11 @@ async function initializePlayer() {
       const [currentIndex, setCurrentIndex] = useState(0);
       // Which deck is active: 'A' or 'B'
       const [activeDeck, setActiveDeck] = useState('A');
+      // Keep an up-to-date ref for activeDeck
+      const activeDeckRef = useRef(activeDeck);
+      useEffect(() => {
+          activeDeckRef.current = activeDeck;
+      }, [activeDeck]);
 
       // Volume states for crossfade
       const [volumeA, setVolumeA] = useState(100);
@@ -93,8 +97,7 @@ async function initializePlayer() {
                           }
                       },
                       onStateChange: (ev) => {
-                          // When deck A ends, if not already crossfading, trigger crossfade
-                          if (ev.data === YT.PlayerState.ENDED && activeDeck === 'A' && trackB && !isCrossfading) {
+                          if (ev.data === YT.PlayerState.ENDED && activeDeckRef.current === 'A' && trackB && !isCrossfading) {
                               startCrossfade();
                           }
                       }
@@ -131,10 +134,9 @@ async function initializePlayer() {
       }, []); // One-time initialization
 
       // 3) Update deck A when trackA changes.
-      // If deck A is active, load and play; otherwise, cue the video.
       useEffect(() => {
           if (youtubePlayerARef.current && trackA?.videoId) {
-              if (activeDeck === 'A') {
+              if (activeDeckRef.current === 'A') {
                   if (typeof youtubePlayerARef.current.loadVideoById === 'function') {
                       youtubePlayerARef.current.loadVideoById(trackA.videoId);
                   }
@@ -144,13 +146,12 @@ async function initializePlayer() {
                   }
               }
           }
-      }, [trackA, activeDeck]);
+      }, [trackA]);
 
       // 4) Update deck B when trackB changes.
-      // If deck B is active, load and play; otherwise, cue the video.
       useEffect(() => {
           if (youtubePlayerBRef.current && trackB?.videoId) {
-              if (activeDeck === 'B') {
+              if (activeDeckRef.current === 'B') {
                   if (typeof youtubePlayerBRef.current.loadVideoById === 'function') {
                       youtubePlayerBRef.current.loadVideoById(trackB.videoId);
                   }
@@ -160,18 +161,16 @@ async function initializePlayer() {
                   }
               }
           }
-      }, [trackB, activeDeck]);
+      }, [trackB]);
 
       // 5) Check every second if active deck is within 3 seconds of track end
       useEffect(() => {
           const checkInterval = setInterval(() => {
               if (isCrossfading) return;
-              const player = activeDeck === 'A' ? youtubePlayerARef.current : youtubePlayerBRef.current;
-              if (
-                  player &&
+              const player = activeDeckRef.current === 'A' ? youtubePlayerARef.current : youtubePlayerBRef.current;
+              if (player &&
                   typeof player.getCurrentTime === 'function' &&
-                  typeof player.getDuration === 'function'
-              ) {
+                  typeof player.getDuration === 'function') {
                   const currentTime = player.getCurrentTime();
                   const duration = player.getDuration();
                   if (duration > 0 && (duration - currentTime <= 3)) {
@@ -180,11 +179,10 @@ async function initializePlayer() {
               }
           }, 1000);
           return () => clearInterval(checkInterval);
-      }, [activeDeck, isCrossfading, trackA, trackB]);
+      }, [isCrossfading, trackA, trackB]);
 
       // 6) Handle row clicks by extracting track info from the row DOM
       function handleRowClick(e) {
-          // Ignore clicks on actual <a> links
           if (e.target.tagName.toLowerCase() === 'a') return;
           e.preventDefault();
 
@@ -200,8 +198,8 @@ async function initializePlayer() {
           if (!videoId) return;
           const clickedTrack = { title, artist, videoId };
 
-          // Load the clicked track into the active deck
-          if (activeDeck === 'A') {
+          // Use the up-to-date activeDeckRef for determining which deck to load the track into
+          if (activeDeckRef.current === 'A') {
               setTrackA(clickedTrack);
           } else {
               setTrackB(clickedTrack);
@@ -216,7 +214,7 @@ async function initializePlayer() {
               const nextVideoId = nextLink ? extractVideoId(nextLink.href) : '';
               const nextTrack = { title: nextTitle, artist: nextArtist, videoId: nextVideoId };
 
-              if (activeDeck === 'A') {
+              if (activeDeckRef.current === 'A') {
                   setTrackB(nextTrack);
               } else {
                   setTrackA(nextTrack);
@@ -225,15 +223,17 @@ async function initializePlayer() {
       }
 
       // 7) Crossfade from the active deck to the inactive deck.
-      // Before starting the fade, we force the inactive deck to start playing.
+      // Before starting the fade, force the inactive deck to start playing immediately.
       function startCrossfade() {
           if (isCrossfading) return;
           setIsCrossfading(true);
 
           // Force the inactive deck to start playback immediately
-          if (activeDeck === 'A' && trackB && youtubePlayerBRef.current && typeof youtubePlayerBRef.current.loadVideoById === 'function') {
+          if (activeDeckRef.current === 'A' && trackB && youtubePlayerBRef.current &&
+              typeof youtubePlayerBRef.current.loadVideoById === 'function') {
               youtubePlayerBRef.current.loadVideoById(trackB.videoId);
-          } else if (activeDeck === 'B' && trackA && youtubePlayerARef.current && typeof youtubePlayerARef.current.loadVideoById === 'function') {
+          } else if (activeDeckRef.current === 'B' && trackA && youtubePlayerARef.current &&
+                     typeof youtubePlayerARef.current.loadVideoById === 'function') {
               youtubePlayerARef.current.loadVideoById(trackA.videoId);
           }
 
@@ -246,7 +246,7 @@ async function initializePlayer() {
               const fadeOut = 100 - Math.round((100 * stepCount) / steps);
               const fadeIn = Math.round((100 * stepCount) / steps);
 
-              if (activeDeck === 'A') {
+              if (activeDeckRef.current === 'A') {
                   if (youtubePlayerARef.current) youtubePlayerARef.current.setVolume(fadeOut);
                   if (youtubePlayerBRef.current) youtubePlayerBRef.current.setVolume(fadeIn);
                   setVolumeA(fadeOut);
@@ -265,15 +265,14 @@ async function initializePlayer() {
           }, duration / steps);
       }
 
-      // 8) Cleanup after crossfade: stop the fading deck, swap active deck, and preload the next track without auto-playing
+      // 8) Cleanup after crossfade: stop the fading deck, swap active deck, and preload the next track (cue it so it doesn't auto-play)
       function finishCrossfade() {
-          if (activeDeck === 'A') {
+          if (activeDeckRef.current === 'A') {
               if (youtubePlayerARef.current) youtubePlayerARef.current.stopVideo();
               setActiveDeck('B');
               setVolumeA(0);
               setVolumeB(100);
 
-              // Preload the next track into deck A (cue it so it doesn't auto-play)
               setCurrentIndex(idx => {
                   const newIndex = idx + 1;
                   const nextTrack = queue[newIndex + 1];
@@ -305,7 +304,7 @@ async function initializePlayer() {
       }
 
       // Render the component with a floating container that passes through pointer events.
-      // Also, add onClick handlers on the deck areas: clicking on a non-active deck triggers crossfade.
+      // Also, clicking on a non-active deck triggers crossfade.
       return React.createElement(
           'div',
           {
@@ -328,7 +327,7 @@ async function initializePlayer() {
               'div',
               {
                   onClick: () => {
-                      if (activeDeck !== 'A' && trackA) startCrossfade();
+                      if (activeDeckRef.current !== 'A' && trackA) startCrossfade();
                   },
                   style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', pointerEvents: 'auto' }
               },
@@ -345,7 +344,7 @@ async function initializePlayer() {
               'div',
               {
                   onClick: () => {
-                      if (activeDeck !== 'B' && trackB) startCrossfade();
+                      if (activeDeckRef.current !== 'B' && trackB) startCrossfade();
                   },
                   style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', pointerEvents: 'auto' }
               },
