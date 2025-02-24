@@ -31,7 +31,7 @@ async function initializePlayer() {
       const [currentIndex, setCurrentIndex] = useState(0);
       // Which deck is active: 'A' or 'B'
       const [activeDeck, setActiveDeck] = useState('A');
-      // Keep an up-to-date ref for activeDeck
+      // Maintain an up-to-date ref for activeDeck (to avoid stale closures)
       const activeDeckRef = useRef(activeDeck);
       useEffect(() => {
           activeDeckRef.current = activeDeck;
@@ -97,7 +97,22 @@ async function initializePlayer() {
                           }
                       },
                       onStateChange: (ev) => {
-                          if (ev.data === YT.PlayerState.ENDED && activeDeckRef.current === 'A' && trackB && !isCrossfading) {
+                          // If deck A (inactive) unexpectedly starts playing, override active deck
+                          if (ev.data === YT.PlayerState.PLAYING &&
+                              activeDeckRef.current !== 'A' &&
+                              !isCrossfading) {
+                              if (youtubePlayerBRef.current) {
+                                  youtubePlayerBRef.current.stopVideo();
+                              }
+                              setActiveDeck('A');
+                              setVolumeA(100);
+                              setVolumeB(0);
+                          }
+                          // When deck A ends while active, trigger crossfade if trackB exists
+                          if (ev.data === YT.PlayerState.ENDED &&
+                              activeDeckRef.current === 'A' &&
+                              trackB &&
+                              !isCrossfading) {
                               startCrossfade();
                           }
                       }
@@ -117,6 +132,26 @@ async function initializePlayer() {
                           if (trackB?.videoId && typeof ev.target.cueVideoById === 'function') {
                               ev.target.cueVideoById(trackB.videoId);
                           }
+                      },
+                      onStateChange: (ev) => {
+                          // If deck B (inactive) unexpectedly starts playing, override active deck
+                          if (ev.data === YT.PlayerState.PLAYING &&
+                              activeDeckRef.current !== 'B' &&
+                              !isCrossfading) {
+                              if (youtubePlayerARef.current) {
+                                  youtubePlayerARef.current.stopVideo();
+                              }
+                              setActiveDeck('B');
+                              setVolumeB(100);
+                              setVolumeA(0);
+                          }
+                          // When deck B ends while active, trigger crossfade if trackA exists
+                          if (ev.data === YT.PlayerState.ENDED &&
+                              activeDeckRef.current === 'B' &&
+                              trackA &&
+                              !isCrossfading) {
+                              startCrossfade();
+                          }
                       }
                   }
               });
@@ -134,6 +169,7 @@ async function initializePlayer() {
       }, []); // One-time initialization
 
       // 3) Update deck A when trackA changes.
+      // If deck A is active, load and play; otherwise, cue the video.
       useEffect(() => {
           if (youtubePlayerARef.current && trackA?.videoId) {
               if (activeDeckRef.current === 'A') {
@@ -149,6 +185,7 @@ async function initializePlayer() {
       }, [trackA]);
 
       // 4) Update deck B when trackB changes.
+      // If deck B is active, load and play; otherwise, cue the video.
       useEffect(() => {
           if (youtubePlayerBRef.current && trackB?.videoId) {
               if (activeDeckRef.current === 'B') {
@@ -198,7 +235,7 @@ async function initializePlayer() {
           if (!videoId) return;
           const clickedTrack = { title, artist, videoId };
 
-          // Use the up-to-date activeDeckRef for determining which deck to load the track into
+          // Use the up-to-date activeDeckRef to decide which deck to update
           if (activeDeckRef.current === 'A') {
               setTrackA(clickedTrack);
           } else {
@@ -223,7 +260,7 @@ async function initializePlayer() {
       }
 
       // 7) Crossfade from the active deck to the inactive deck.
-      // Before starting the fade, force the inactive deck to start playing immediately.
+      // Before starting the fade, force the inactive deck to start playback.
       function startCrossfade() {
           if (isCrossfading) return;
           setIsCrossfading(true);
