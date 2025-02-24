@@ -47,6 +47,9 @@ async function initializePlayer() {
     // Flag to prevent multiple crossfades at once
     const [isCrossfading, setIsCrossfading] = useState(false);
 
+    // Flag for shuffle mode
+    const [shuffle, setShuffle] = useState(false);
+
     // Flags for player readiness
     const [playerAReady, setPlayerAReady] = useState(false);
     const [playerBReady, setPlayerBReady] = useState(false);
@@ -321,14 +324,19 @@ async function initializePlayer() {
         setVolumeA(0);
         setVolumeB(100);
         setCurrentIndex(idx => {
-          const newIndex = idx + 1;
-          const nextTrack = queue[newIndex + 1];
-          if (nextTrack) {
-            setTrackA(nextTrack);
+          if (shuffle) {
+            let newIndex = Math.floor(Math.random() * queue.length);
+            if (queue.length > 1 && newIndex === idx) {
+              newIndex = (newIndex + 1) % queue.length;
+            }
+            setTrackA(queue[newIndex]);
+            return newIndex;
           } else {
-            setTrackA(null);
+            const newIndex = idx + 1;
+            const nextTrack = queue[newIndex + 1];
+            setTrackA(nextTrack ? nextTrack : null);
+            return newIndex;
           }
-          return newIndex;
         });
       } else {
         if (youtubePlayerBRef.current) youtubePlayerBRef.current.stopVideo();
@@ -336,20 +344,25 @@ async function initializePlayer() {
         setVolumeB(0);
         setVolumeA(100);
         setCurrentIndex(idx => {
-          const newIndex = idx + 1;
-          const nextTrack = queue[newIndex + 1];
-          if (nextTrack) {
-            setTrackB(nextTrack);
+          if (shuffle) {
+            let newIndex = Math.floor(Math.random() * queue.length);
+            if (queue.length > 1 && newIndex === idx) {
+              newIndex = (newIndex + 1) % queue.length;
+            }
+            setTrackB(queue[newIndex]);
+            return newIndex;
           } else {
-            setTrackB(null);
+            const newIndex = idx + 1;
+            const nextTrack = queue[newIndex + 1];
+            setTrackB(nextTrack ? nextTrack : null);
+            return newIndex;
           }
-          return newIndex;
         });
       }
       setIsCrossfading(false);
     }
 
-    // Render the floating container, deck areas, and the X-Fade button.
+    // Render the floating container, deck areas, and control buttons.
     return React.createElement(
       'div',
       {
@@ -385,23 +398,49 @@ async function initializePlayer() {
         trackA && React.createElement('p', null, trackA.title),
         React.createElement('p', { style: { fontSize: '0.8em', opacity: 0.7 } }, `Volume: ${volumeA}`)
       ),
-      // X-Fade button with a semi-transparent background for better visibility.
+      // Center control container for X-Fade and Shuffle buttons
       React.createElement(
-        'button',
+        'div',
         {
-          onClick: startCrossfade,
           style: {
-            pointerEvents: 'auto',
-            margin: '0 20px',
-            padding: '10px 15px',
-            fontSize: '1em',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px'
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            pointerEvents: 'auto'
           }
         },
-        'X-Fade'
+        React.createElement(
+          'button',
+          {
+            onClick: startCrossfade,
+            style: {
+              margin: '0 20px',
+              padding: '10px 15px',
+              fontSize: '1em',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px'
+            }
+          },
+          'X-Fade'
+        ),
+        React.createElement(
+          'button',
+          {
+            onClick: () => setShuffle(!shuffle),
+            style: {
+              marginTop: '10px',
+              padding: '10px 15px',
+              fontSize: '1em',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px'
+            }
+          },
+          `Shuffle: ${shuffle ? 'On' : 'Off'}`
+        )
       ),
       // Deck B container
       React.createElement(
