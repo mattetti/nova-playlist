@@ -128,31 +128,33 @@ async function initializePlayer() {
                   initDeckB();
               };
           }
-      }, []); // Empty dependency to ensure one-time initialization
+      }, []); // One-time initialization
 
-      // 3) Update deck A when trackA changes
+      // 3) Update deck A when trackA changes.
+      // If deck A is active, load and play; otherwise, cue the video.
       useEffect(() => {
-          if (
-              youtubePlayerARef.current &&
-              trackA?.videoId &&
-              typeof youtubePlayerARef.current.loadVideoById === 'function'
-          ) {
-              youtubePlayerARef.current.loadVideoById(trackA.videoId);
+          if (youtubePlayerARef.current && trackA?.videoId) {
+              if (activeDeck === 'A') {
+                  youtubePlayerARef.current.loadVideoById(trackA.videoId);
+              } else {
+                  youtubePlayerARef.current.cueVideoById(trackA.videoId);
+              }
           }
-      }, [trackA]);
+      }, [trackA, activeDeck]);
 
-      // 4) Update deck B when trackB changes
+      // 4) Update deck B when trackB changes.
+      // If deck B is active, load and play; otherwise, cue the video.
       useEffect(() => {
-          if (
-              youtubePlayerBRef.current &&
-              trackB?.videoId &&
-              typeof youtubePlayerBRef.current.loadVideoById === 'function'
-          ) {
-              youtubePlayerBRef.current.loadVideoById(trackB.videoId);
+          if (youtubePlayerBRef.current && trackB?.videoId) {
+              if (activeDeck === 'B') {
+                  youtubePlayerBRef.current.loadVideoById(trackB.videoId);
+              } else {
+                  youtubePlayerBRef.current.cueVideoById(trackB.videoId);
+              }
           }
-      }, [trackB]);
+      }, [trackB, activeDeck]);
 
-      // 5) Use an interval to check if the active deck is 3s from the end
+      // 5) Check every second if active deck is within 3 seconds of track end
       useEffect(() => {
           const checkInterval = setInterval(() => {
               if (isCrossfading) return;
@@ -218,7 +220,7 @@ async function initializePlayer() {
       function startCrossfade() {
           if (isCrossfading) return;
           setIsCrossfading(true);
-          const duration = 3000; // total crossfade duration in ms
+          const duration = 3000; // crossfade duration in ms
           const steps = 30;
           let stepCount = 0;
 
@@ -246,7 +248,7 @@ async function initializePlayer() {
           }, duration / steps);
       }
 
-      // 8) Cleanup after crossfade: stop the old deck, swap active deck, and reset the crossfade flag
+      // 8) Cleanup after crossfade: stop the fading deck, swap active deck, and preload the next track without auto-playing
       function finishCrossfade() {
           if (activeDeck === 'A') {
               if (youtubePlayerARef.current) youtubePlayerARef.current.stopVideo();
@@ -254,7 +256,7 @@ async function initializePlayer() {
               setVolumeA(0);
               setVolumeB(100);
 
-              // Advance the queue: preload the next track into deck A
+              // Preload the next track into deck A (cue it so it doesn't auto-play)
               setCurrentIndex(idx => {
                   const newIndex = idx + 1;
                   const nextTrack = queue[newIndex + 1];
@@ -286,7 +288,7 @@ async function initializePlayer() {
       }
 
       // Render the component with a floating container that passes through pointer events.
-      // Also, add onClick handlers on the deck areas: if you click on the non-active deck's player, trigger crossfade.
+      // Also, add onClick handlers on the deck areas: clicking on a non-active deck triggers crossfade.
       return React.createElement(
           'div',
           {
@@ -304,7 +306,7 @@ async function initializePlayer() {
                   pointerEvents: 'none'
               }
           },
-          // Deck A container with onClick to trigger crossfade if deck A is non-active
+          // Deck A container
           React.createElement(
               'div',
               {
@@ -321,7 +323,7 @@ async function initializePlayer() {
               trackA && React.createElement('p', null, trackA.title),
               React.createElement('p', { style: { fontSize: '0.8em', opacity: 0.7 } }, `Volume: ${volumeA}`)
           ),
-          // Deck B container with onClick to trigger crossfade if deck B is non-active
+          // Deck B container
           React.createElement(
               'div',
               {
