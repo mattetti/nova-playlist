@@ -88,7 +88,7 @@ async function initializePlayer() {
                   events: {
                       onReady: (ev) => {
                           ev.target.setVolume(volumeA);
-                          if (trackA?.videoId) {
+                          if (trackA?.videoId && typeof ev.target.cueVideoById === 'function') {
                               ev.target.cueVideoById(trackA.videoId);
                           }
                       },
@@ -111,7 +111,7 @@ async function initializePlayer() {
                   events: {
                       onReady: (ev) => {
                           ev.target.setVolume(volumeB);
-                          if (trackB?.videoId) {
+                          if (trackB?.videoId && typeof ev.target.cueVideoById === 'function') {
                               ev.target.cueVideoById(trackB.videoId);
                           }
                       }
@@ -135,9 +135,13 @@ async function initializePlayer() {
       useEffect(() => {
           if (youtubePlayerARef.current && trackA?.videoId) {
               if (activeDeck === 'A') {
-                  youtubePlayerARef.current.loadVideoById(trackA.videoId);
+                  if (typeof youtubePlayerARef.current.loadVideoById === 'function') {
+                      youtubePlayerARef.current.loadVideoById(trackA.videoId);
+                  }
               } else {
-                  youtubePlayerARef.current.cueVideoById(trackA.videoId);
+                  if (typeof youtubePlayerARef.current.cueVideoById === 'function') {
+                      youtubePlayerARef.current.cueVideoById(trackA.videoId);
+                  }
               }
           }
       }, [trackA, activeDeck]);
@@ -147,9 +151,13 @@ async function initializePlayer() {
       useEffect(() => {
           if (youtubePlayerBRef.current && trackB?.videoId) {
               if (activeDeck === 'B') {
-                  youtubePlayerBRef.current.loadVideoById(trackB.videoId);
+                  if (typeof youtubePlayerBRef.current.loadVideoById === 'function') {
+                      youtubePlayerBRef.current.loadVideoById(trackB.videoId);
+                  }
               } else {
-                  youtubePlayerBRef.current.cueVideoById(trackB.videoId);
+                  if (typeof youtubePlayerBRef.current.cueVideoById === 'function') {
+                      youtubePlayerBRef.current.cueVideoById(trackB.videoId);
+                  }
               }
           }
       }, [trackB, activeDeck]);
