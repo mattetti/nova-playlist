@@ -276,11 +276,7 @@ func (pc *PlaylistCreator) CreatePlaylist(novaPlaylist *nova.Playlist) (string, 
 	}
 
 	var playlistTitle string
-	if strings.HasPrefix(novaPlaylist.Title(), "Top of") {
-		playlistTitle = fmt.Sprintf("Radio Nova - %s", novaPlaylist.Title())
-	} else {
-		playlistTitle = fmt.Sprintf("Radio Nova - %s", novaPlaylist.Title())
-	}
+	playlistTitle = novaPlaylist.Title()
 
 	if *skipExistingFlag && !*forceFlag {
 		exists, err := pc.checkIfExists(playlistTitle)
@@ -307,7 +303,7 @@ func (pc *PlaylistCreator) CreatePlaylist(novaPlaylist *nova.Playlist) (string, 
 	playlist := &youtube.Playlist{
 		Snippet: &youtube.PlaylistSnippet{
 			Title:       playlistTitle,
-			Description: fmt.Sprintf("Radio Nova playlist for %s. Generated automatically.", novaPlaylist.Title()),
+			Description: "Radio Nova Playlist generated using the most played songs",
 		},
 		Status: &youtube.PlaylistStatus{
 			PrivacyStatus: privacyStatus,
@@ -431,8 +427,9 @@ func createYearlyPlaylist(creator *PlaylistCreator, year int) (string, error) {
 	})
 
 	yearlyPlaylist := &nova.Playlist{
-		Year:   year,
-		Tracks: make([]*nova.Track, 0),
+		Year:           year,
+		Tracks:         make([]*nova.Track, 0),
+		YearlyPlaylist: true,
 	}
 
 	count := 0
@@ -443,7 +440,7 @@ func createYearlyPlaylist(creator *PlaylistCreator, year int) (string, error) {
 		yearlyPlaylist.Tracks = append(yearlyPlaylist.Tracks, &info.Track)
 		count++
 	}
-	yearlyPlaylist.Name = fmt.Sprintf("Radio Nova - Top 100 of %d", year)
+	yearlyPlaylist.Name = fmt.Sprintf("Radio Nova - Most Played Songs of %d", year)
 
 	if len(yearlyPlaylist.Tracks) == 0 {
 		return "", fmt.Errorf("no tracks found for year %d", year)

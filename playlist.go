@@ -107,6 +107,7 @@ type Playlist struct {
 	Day              int
 	PreviousPlaylist *Playlist
 	NextPlaylist     *Playlist
+	YearlyPlaylist   bool
 }
 
 func (p *Playlist) Sort() {
