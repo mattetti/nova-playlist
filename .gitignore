@@ -3,3 +3,4 @@ web/*.html
 data/http-cache/*
 data/*/*/*.gob
 bin/nova
+bin/ytplaylist/token.json
